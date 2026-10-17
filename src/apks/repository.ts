@@ -28,6 +28,20 @@ interface ApkReleaseRow {
 
 const UNIQUE_VIOLATION = "23505";
 
+function toRelease(row: ApkReleaseRow): ApkRelease {
+  return {
+    id: row.id,
+    versionName: row.version_name,
+    versionCode: row.version_code,
+    fileName: row.file_name,
+    filePath: row.file_path,
+    // BIGINT arrives as a string; APK sizes stay far below Number.MAX_SAFE_INTEGER
+    fileSize: Number(row.file_size),
+    releaseNotes: row.release_notes,
+    createdAt: row.created_at,
+  };
+}
+
 export async function insertRelease(pool: Pool, release: NewApkRelease): Promise<ApkRelease> {
   try {
     const result = await pool.query<ApkReleaseRow>(
@@ -48,17 +62,7 @@ export async function insertRelease(pool: Pool, release: NewApkRelease): Promise
     if (row === undefined) {
       throw new Error("insert into apk_releases returned no row");
     }
-    return {
-      id: row.id,
-      versionName: row.version_name,
-      versionCode: row.version_code,
-      fileName: row.file_name,
-      filePath: row.file_path,
-      // BIGINT arrives as a string; APK sizes stay far below Number.MAX_SAFE_INTEGER
-      fileSize: Number(row.file_size),
-      releaseNotes: row.release_notes,
-      createdAt: row.created_at,
-    };
+    return toRelease(row);
   } catch (error) {
     if (error instanceof DatabaseError && error.code === UNIQUE_VIOLATION) {
       throw new ConflictError(
@@ -69,4 +73,18 @@ export async function insertRelease(pool: Pool, release: NewApkRelease): Promise
     }
     throw error;
   }
+}
+
+export async function findLatestRelease(pool: Pool): Promise<ApkRelease | undefined> {
+  const result = await pool.query<ApkReleaseRow>(
+    "SELECT * FROM apk_releases ORDER BY version_code DESC LIMIT 1",
+  );
+  const row = result.rows[0];
+  return row === undefined ? undefined : toRelease(row);
+}
+
+export async function findReleaseById(pool: Pool, id: number): Promise<ApkRelease | undefined> {
+  const result = await pool.query<ApkReleaseRow>("SELECT * FROM apk_releases WHERE id = $1", [id]);
+  const row = result.rows[0];
+  return row === undefined ? undefined : toRelease(row);
 }
