@@ -1,8 +1,23 @@
 import { buildApp } from "./app.js";
-import { loadConfig } from "./config.js";
+import { loadConfig, loadDatabaseUrl, loadStorageConfig } from "./config.js";
+import { createPool } from "./db/pool.js";
 
 const config = loadConfig();
-const app = await buildApp({ logger: true });
+const storage = loadStorageConfig();
+
+const pool = createPool(loadDatabaseUrl(), (error) => {
+  app.log.error({ event: "db.idle_client_error", err: error });
+});
+const app = await buildApp({ logger: true, pool, ...storage });
+app.addHook("onClose", async () => {
+  await pool.end();
+});
+
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.once(signal, () => {
+    void app.close();
+  });
+}
 
 try {
   await app.listen({ host: config.host, port: config.port });
