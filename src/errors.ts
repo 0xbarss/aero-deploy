@@ -16,6 +16,12 @@ export class ValidationError extends ApiError {
   }
 }
 
+export class NotFoundError extends ApiError {
+  constructor(code: string, message: string, options?: ErrorOptions) {
+    super(404, code, message, options);
+  }
+}
+
 export class ConflictError extends ApiError {
   constructor(code: string, message: string, options?: ErrorOptions) {
     super(409, code, message, options);
