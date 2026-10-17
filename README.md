@@ -49,6 +49,41 @@ A successful upload returns `201` with `{ "success": true, "message": "...", "da
 
 Files are stored in `UPLOAD_DIR` as `<versionCode>-<uuid>.apk`; the database keeps the original file name and the stored name.
 
+## Uploading from a build script
+
+`scripts/upload-apk.ts` wraps the upload request so a build step can call it and stop on failure.
+
+```bash
+npm run upload -- app/build/outputs/apk/debug/app-debug.apk \
+  --version-name 1.0.0 --version-code 1 --notes "Nightly build"
+```
+
+| Option               | Required | Notes                                                                        |
+| :------------------- | :------- | :--------------------------------------------------------------------------- |
+| `<apk-path>`         | yes      | Path to the APK                                                              |
+| `--version-name <v>` | yes      | Up to 50 characters                                                          |
+| `--version-code <n>` | yes      | Positive integer, must be unique                                             |
+| `--notes <text>`     | no       | Release notes                                                                |
+| `--server <url>`     | no       | Server address; falls back to `AERODEPLOY_URL`, then `http://localhost:3000` |
+
+The file is sent in chunks, so its size does not affect memory use.
+
+| Exit code | Meaning                                                                                                            |
+| :-------- | :----------------------------------------------------------------------------------------------------------------- |
+| 0         | Uploaded                                                                                                           |
+| 1         | The file is missing, the server is unreachable, or the server rejected the upload; the reason is printed to stderr |
+| 2         | Invalid arguments; the usage text is printed to stderr                                                             |
+
+`npm run` starts in the aero-deploy directory, so a relative APK path is resolved from there. To call the script from another project, run `tsx` directly and keep your own working directory:
+
+```bash
+AERODEPLOY_URL=http://192.168.1.20:3000 \
+  /path/to/aero-deploy/node_modules/.bin/tsx /path/to/aero-deploy/scripts/upload-apk.ts \
+  app/build/outputs/apk/debug/app-debug.apk --version-name 1.0.0 --version-code 1
+```
+
+Keep `--version-code` increasing: `latest` returns the highest one, so a lower code uploaded later is stored but never offered as an update.
+
 ## Checking for the latest version
 
 ```bash
@@ -107,6 +142,7 @@ The file is streamed with `Content-Type: application/vnd.android.package-archive
 | `npm run lint`         | Run ESLint                           |
 | `npm run typecheck`    | Run the TypeScript compiler, no emit |
 | `npm run format:check` | Check formatting                     |
+| `npm run upload`       | Upload an APK to a running server    |
 
 ## Notes
 
