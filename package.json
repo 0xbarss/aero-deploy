@@ -17,7 +17,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "migrate": "tsx --env-file-if-exists=.env src/db/migrate-cli.ts up",
-    "migrate:down": "tsx --env-file-if-exists=.env src/db/migrate-cli.ts down"
+    "migrate:down": "tsx --env-file-if-exists=.env src/db/migrate-cli.ts down",
+    "upload": "tsx scripts/upload-apk.ts"
   },
   "dependencies": {
     "@fastify/multipart": "^10.1.4",
