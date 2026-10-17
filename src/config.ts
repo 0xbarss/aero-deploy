@@ -7,8 +7,9 @@ export class ConfigError extends Error {
   constructor(
     message: string,
     readonly variable: string,
+    options?: ErrorOptions,
   ) {
-    super(message);
+    super(message, options);
     this.name = "ConfigError";
   }
 }
@@ -32,4 +33,25 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     host: env.HOST ?? DEFAULT_HOST,
     port: parsePort(env.PORT),
   };
+}
+
+/** Error messages never include the URL itself, since it carries the database password. */
+export function loadDatabaseUrl(
+  env: NodeJS.ProcessEnv = process.env,
+  variable = "DATABASE_URL",
+): string {
+  const raw = env[variable]?.trim();
+  if (!raw) {
+    throw new ConfigError(`${variable} is required`, variable);
+  }
+  let protocol: string;
+  try {
+    protocol = new URL(raw).protocol;
+  } catch (error) {
+    throw new ConfigError(`${variable} is not a valid URL`, variable, { cause: error });
+  }
+  if (protocol !== "postgres:" && protocol !== "postgresql:") {
+    throw new ConfigError(`${variable} must start with postgres:// or postgresql://`, variable);
+  }
+  return raw;
 }
