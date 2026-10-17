@@ -49,6 +49,43 @@ A successful upload returns `201` with `{ "success": true, "message": "...", "da
 
 Files are stored in `UPLOAD_DIR` as `<versionCode>-<uuid>.apk`; the database keeps the original file name and the stored name.
 
+## Checking for the latest version
+
+```bash
+curl http://localhost:3000/api/apks/latest
+```
+
+Returns the release with the highest `versionCode`:
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": 3,
+    "versionName": "1.1.0",
+    "versionCode": 4,
+    "releaseNotes": "Bug fixes and performance improvements",
+    "downloadUrl": "http://192.168.1.20:3000/api/apks/download/3"
+  }
+}
+```
+
+`releaseNotes` is `null` when none were uploaded. `downloadUrl` is built from the `Host` header of the request, so a device that reaches the server at a LAN address gets a URL it can use. If the server sits behind a proxy that rewrites `Host`, the URL will use the rewritten value. When nothing has been uploaded yet, the response is `404` with code `no_releases`.
+
+## Downloading an APK
+
+```bash
+curl -OJ http://localhost:3000/api/apks/download/3
+```
+
+The file is streamed with `Content-Type: application/vnd.android.package-archive`, a `Content-Length` and a `Content-Disposition` carrying the original file name. Range requests are not supported.
+
+| Status | Code                | Cause                                                        |
+| :----- | :------------------ | :----------------------------------------------------------- |
+| 400    | `validation_error`  | `id` is not a positive integer                               |
+| 404    | `release_not_found` | No release has that `id`                                     |
+| 404    | `apk_file_missing`  | The release is registered but its file is gone from the disk |
+
 ## Configuration
 
 | Variable            | Default            | Purpose                               |
@@ -74,5 +111,3 @@ Files are stored in `UPLOAD_DIR` as `<versionCode>-<uuid>.apk`; the database kee
 ## Notes
 
 Migrations live in `migrations/` as `<timestamp>_<name>.up.sql` and `.down.sql` pairs. Integration tests drop and recreate the `public` schema of `TEST_DATABASE_URL`, so never point it at a database you care about.
-
-The version check and download endpoints are not implemented yet.
