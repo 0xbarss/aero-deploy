@@ -22,6 +22,43 @@ The server listens on `HOST:PORT` (default `0.0.0.0:3000`).
 curl http://localhost:3000/api/health
 ```
 
+## Uploading an APK
+
+```bash
+curl -X POST http://localhost:3000/api/apks/upload \
+  -F "apk=@app/build/outputs/apk/debug/app-debug.apk" \
+  -F "versionName=1.0.0" \
+  -F "versionCode=1" \
+  -F "releaseNotes=Nightly build"
+```
+
+| Field          | Required | Notes                                          |
+| :------------- | :------- | :--------------------------------------------- |
+| `apk`          | yes      | File name must end in `.apk`, content is a ZIP |
+| `versionName`  | yes      | Up to 50 characters                            |
+| `versionCode`  | yes      | Positive integer, must be unique               |
+| `releaseNotes` | no       | Up to 10000 characters                         |
+
+A successful upload returns `201` with `{ "success": true, "message": "...", "data": { ... } }`. Errors return `{ "success": false, "error": { "code": "...", "message": "..." } }`:
+
+| Status | Code                  | Cause                                               |
+| :----- | :-------------------- | :-------------------------------------------------- |
+| 400    | `validation_error`    | Missing or invalid field, or the file is not an APK |
+| 409    | `version_code_exists` | `versionCode` is already registered                 |
+| 413    | `file_too_large`      | File is larger than `MAX_UPLOAD_MB`                 |
+
+Files are stored in `UPLOAD_DIR` as `<versionCode>-<uuid>.apk`; the database keeps the original file name and the stored name.
+
+## Configuration
+
+| Variable            | Default            | Purpose                               |
+| :------------------ | :----------------- | :------------------------------------ |
+| `HOST`, `PORT`      | `0.0.0.0`, `3000`  | Address the server listens on         |
+| `DATABASE_URL`      | required           | PostgreSQL connection string          |
+| `UPLOAD_DIR`        | `uploads`          | Directory for uploaded APK files      |
+| `MAX_UPLOAD_MB`     | `200`              | Largest accepted upload, in megabytes |
+| `TEST_DATABASE_URL` | required for tests | Database the tests may wipe           |
+
 ## Scripts
 
 | Script                 | Purpose                              |
@@ -38,4 +75,4 @@ curl http://localhost:3000/api/health
 
 Migrations live in `migrations/` as `<timestamp>_<name>.up.sql` and `.down.sql` pairs. Integration tests drop and recreate the `public` schema of `TEST_DATABASE_URL`, so never point it at a database you care about.
 
-Upload, version check and download endpoints are not implemented yet.
+The version check and download endpoints are not implemented yet.
