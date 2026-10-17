@@ -1,10 +1,12 @@
-import { rm } from "node:fs/promises";
+import { open, rm, type FileHandle } from "node:fs/promises";
 import { join } from "node:path";
 import type { FastifyBaseLogger, FastifyInstance } from "fastify";
 import type { Pool } from "pg";
-import { ValidationError } from "../errors.js";
+import { NotFoundError, ValidationError } from "../errors.js";
 import { formatFileSize } from "../format-file-size.js";
-import { insertRelease } from "./repository.js";
+import { buildContentDisposition } from "./content-disposition.js";
+import { parseReleaseId } from "./release-id.js";
+import { findLatestRelease, findReleaseById, insertRelease } from "./repository.js";
 import { finalizeUpload, saveUpload, type StoredUpload } from "./storage.js";
 import { parseUploadFields } from "./upload-fields.js";
 
@@ -74,5 +76,57 @@ export function registerApkRoutes(app: FastifyInstance, options: ApkRoutesOption
       }
       throw error;
     }
+  });
+
+  app.get("/api/apks/latest", async (request) => {
+    const release = await findLatestRelease(pool);
+    if (release === undefined) {
+      throw new NotFoundError("no_releases", "No APK has been uploaded yet");
+    }
+    return {
+      success: true,
+      data: {
+        id: release.id,
+        versionName: release.versionName,
+        versionCode: release.versionCode,
+        releaseNotes: release.releaseNotes,
+        downloadUrl: `${request.protocol}://${request.host}/api/apks/download/${release.id}`,
+      },
+    };
+  });
+
+  app.get<{ Params: { id: string } }>("/api/apks/download/:id", async (request, reply) => {
+    const id = parseReleaseId(request.params.id);
+    const release = await findReleaseById(pool, id);
+    if (release === undefined) {
+      throw new NotFoundError("release_not_found", `Release ${id} not found`);
+    }
+
+    // Open first and read the size from the handle, so a file removed in between cannot slip past
+    let handle: FileHandle;
+    try {
+      handle = await open(join(uploadDir, release.filePath), "r");
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+        request.log.error({
+          event: "download.file_missing",
+          releaseId: id,
+          path: release.filePath,
+        });
+        throw new NotFoundError(
+          "apk_file_missing",
+          `The file for release ${id} is no longer on the server`,
+          { cause: error },
+        );
+      }
+      throw error;
+    }
+
+    const { size } = await handle.stat();
+    return reply
+      .header("content-type", "application/vnd.android.package-archive")
+      .header("content-length", size)
+      .header("content-disposition", buildContentDisposition(release.fileName))
+      .send(handle.createReadStream({ autoClose: true }));
   });
 }
