@@ -1,3 +1,5 @@
+import { resolve } from "node:path";
+
 export interface AppConfig {
   host: string;
   port: number;
@@ -54,4 +56,30 @@ export function loadDatabaseUrl(
     throw new ConfigError(`${variable} must start with postgres:// or postgresql://`, variable);
   }
   return raw;
+}
+
+export interface StorageConfig {
+  uploadDir: string;
+  maxUploadBytes: number;
+}
+
+const DEFAULT_UPLOAD_DIR = "uploads";
+const DEFAULT_MAX_UPLOAD_MB = 200;
+
+export function loadStorageConfig(env: NodeJS.ProcessEnv = process.env): StorageConfig {
+  const rawDir = env.UPLOAD_DIR ?? DEFAULT_UPLOAD_DIR;
+  if (rawDir.trim() === "") {
+    throw new ConfigError("UPLOAD_DIR must not be empty", "UPLOAD_DIR");
+  }
+
+  const rawMax = env.MAX_UPLOAD_MB;
+  const maxMb = rawMax === undefined ? DEFAULT_MAX_UPLOAD_MB : Number(rawMax);
+  if (rawMax?.trim() === "" || !Number.isInteger(maxMb) || maxMb < 1) {
+    throw new ConfigError(
+      `MAX_UPLOAD_MB must be a positive integer, got "${rawMax}"`,
+      "MAX_UPLOAD_MB",
+    );
+  }
+
+  return { uploadDir: resolve(rawDir), maxUploadBytes: maxMb * 1024 * 1024 };
 }
