@@ -5,6 +5,7 @@ import type { Pool } from "pg";
 import { NotFoundError, ValidationError } from "../errors.js";
 import { formatFileSize } from "../format-file-size.js";
 import { buildContentDisposition } from "./content-disposition.js";
+import { translateMultipartError } from "./multipart-errors.js";
 import { parseReleaseId } from "./release-id.js";
 import { findLatestRelease, findReleaseById, insertRelease } from "./repository.js";
 import { finalizeUpload, saveUpload, type StoredUpload } from "./storage.js";
@@ -74,7 +75,7 @@ export function registerApkRoutes(app: FastifyInstance, options: ApkRoutesOption
       if (currentPath !== undefined) {
         await removeFile(currentPath, request.log);
       }
-      throw error;
+      throw translateMultipartError(error);
     }
   });
 

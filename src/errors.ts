@@ -33,3 +33,14 @@ export class PayloadTooLargeError extends ApiError {
     super(413, "file_too_large", message, options);
   }
 }
+
+export class RequestAbortedError extends ApiError {
+  constructor(options?: ErrorOptions) {
+    super(
+      400,
+      "request_aborted",
+      "The client closed the connection before the upload finished",
+      options,
+    );
+  }
+}
