@@ -1,4 +1,4 @@
-import type { FastifyInstance } from "fastify";
+import type { FastifyError, FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { ApiError } from "./errors.js";
 
 interface ErrorBody {
@@ -20,6 +20,21 @@ function clientErrorStatus(error: unknown): number | undefined {
     : undefined;
 }
 
+/** Handles errors Fastify raises before a route runs, such as a URL with broken percent-encoding. */
+export function handleFrameworkError(
+  error: FastifyError,
+  request: FastifyRequest,
+  reply: FastifyReply,
+): void {
+  if (error.code === "FST_ERR_BAD_URL") {
+    request.log.warn({ event: "request.rejected", statusCode: 400, code: "bad_request" });
+    void reply.code(400).send(errorBody("bad_request", "Request URL is not valid"));
+    return;
+  }
+  request.log.error({ event: "request.failed", err: error });
+  void reply.code(500).send(errorBody("internal_error", "Internal server error"));
+}
+
 export function registerErrorHandling(app: FastifyInstance): void {
   app.setNotFoundHandler((request, reply) => {
     const path = request.url.split("?")[0];
@@ -30,12 +45,18 @@ export function registerErrorHandling(app: FastifyInstance): void {
 
   app.setErrorHandler((error, request, reply) => {
     if (error instanceof ApiError) {
+      request.log.warn({
+        event: "request.rejected",
+        statusCode: error.statusCode,
+        code: error.code,
+      });
       return reply.code(error.statusCode).send(errorBody(error.code, error.message));
     }
 
     const statusCode = clientErrorStatus(error);
     if (statusCode !== undefined && error instanceof Error) {
       const code = statusCode === 413 ? "payload_too_large" : "bad_request";
+      request.log.warn({ event: "request.rejected", statusCode, code });
       return reply.code(statusCode).send(errorBody(code, error.message));
     }
 

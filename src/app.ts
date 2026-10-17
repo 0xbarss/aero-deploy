@@ -3,7 +3,7 @@ import multipart from "@fastify/multipart";
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from "fastify";
 import type { Pool } from "pg";
 import { registerApkRoutes } from "./apks/routes.js";
-import { registerErrorHandling } from "./error-handler.js";
+import { handleFrameworkError, registerErrorHandling } from "./error-handler.js";
 
 export interface AppOptions {
   logger?: FastifyServerOptions["logger"];
@@ -16,7 +16,7 @@ const MAX_TEXT_FIELD_BYTES = 64 * 1024;
 const MAX_TEXT_FIELDS = 10;
 
 export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
-  const app = Fastify({ logger: options.logger });
+  const app = Fastify({ logger: options.logger, frameworkErrors: handleFrameworkError });
 
   registerErrorHandling(app);
   await mkdir(options.uploadDir, { recursive: true });
