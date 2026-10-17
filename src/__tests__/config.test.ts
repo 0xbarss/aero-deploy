@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ConfigError, loadConfig, loadDatabaseUrl } from "../config.js";
+import { resolve } from "node:path";
+import { ConfigError, loadConfig, loadDatabaseUrl, loadStorageConfig } from "../config.js";
 
 describe("loadConfig", () => {
   it("falls back to defaults when nothing is set", () => {
@@ -45,5 +46,29 @@ describe("loadDatabaseUrl", () => {
   it("rejects a value that is not a postgres url", () => {
     expect(() => loadDatabaseUrl({ DATABASE_URL: "mysql://localhost/db" })).toThrow(ConfigError);
     expect(() => loadDatabaseUrl({ DATABASE_URL: "not a url" })).toThrow(ConfigError);
+  });
+});
+
+describe("loadStorageConfig", () => {
+  it("falls back to ./uploads and 200 MB", () => {
+    expect(loadStorageConfig({})).toEqual({
+      uploadDir: resolve("uploads"),
+      maxUploadBytes: 200 * 1024 * 1024,
+    });
+  });
+
+  it("reads UPLOAD_DIR and MAX_UPLOAD_MB", () => {
+    expect(loadStorageConfig({ UPLOAD_DIR: "/srv/apks", MAX_UPLOAD_MB: "50" })).toEqual({
+      uploadDir: "/srv/apks",
+      maxUploadBytes: 50 * 1024 * 1024,
+    });
+  });
+
+  it.each(["abc", "0", "-5", "1.5", ""])("rejects MAX_UPLOAD_MB=%j", (value) => {
+    expect(() => loadStorageConfig({ MAX_UPLOAD_MB: value })).toThrow(ConfigError);
+  });
+
+  it("rejects an empty UPLOAD_DIR", () => {
+    expect(() => loadStorageConfig({ UPLOAD_DIR: "  " })).toThrow(ConfigError);
   });
 });
