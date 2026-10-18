@@ -159,6 +159,7 @@ describe("upload script", () => {
       expect(result.code).toBe(0);
       expect(result.stdout).toContain("as release 7");
       expect(result.stdout).not.toContain("SHA-256");
+      expect(result.stdout).not.toMatch(/^App /m);
     } finally {
       await new Promise<void>((resolve) => older.close(() => resolve()));
     }
@@ -233,6 +234,154 @@ describe("upload script", () => {
     );
 
     expect(result.code).toBe(0);
+  });
+
+  describe("reads the version from the APK", () => {
+    async function captureServer(): Promise<{
+      url: string;
+      body: () => string;
+      close: () => Promise<void>;
+    }> {
+      let captured = "";
+      const server = createServer((request, response) => {
+        const chunks: Buffer[] = [];
+        request.on("data", (chunk: Buffer) => chunks.push(chunk));
+        request.on("end", () => {
+          captured = Buffer.concat(chunks).toString("latin1");
+          response.writeHead(201, { "content-type": "application/json" });
+          response.end(
+            JSON.stringify({
+              success: true,
+              data: {
+                id: 1,
+                versionName: "1.2.0",
+                versionCode: 12,
+                fileName: "app-debug.apk",
+                fileSize: "1.4 KB",
+              },
+            }),
+          );
+        });
+      });
+      await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+      const { port } = server.address() as AddressInfo;
+      return {
+        url: `http://127.0.0.1:${port}`,
+        body: () => captured,
+        close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+      };
+    }
+
+    it("uploads with no version options and stores what the APK declares", async () => {
+      const apk = await writeApk();
+
+      const result = await runScript([apk, "--server", serverUrl]);
+
+      expect(result.code).toBe(0);
+      expect(result.stderr).toBe("");
+      const row = await pool.query<{ version_name: string; version_code: number }>(
+        "SELECT version_name, version_code FROM apk_releases",
+      );
+      expect(row.rows).toEqual([
+        { version_name: SHOP.versionName, version_code: SHOP.versionCode },
+      ]);
+    });
+
+    it("does not send version fields it was not given", async () => {
+      const server = await captureServer();
+      try {
+        const apk = await writeApk();
+
+        const result = await runScript([apk, "--server", server.url]);
+
+        expect(result.code).toBe(0);
+        expect(server.body()).toContain('name="apk"');
+        expect(server.body()).not.toContain('name="versionName"');
+        expect(server.body()).not.toContain('name="versionCode"');
+      } finally {
+        await server.close();
+      }
+    });
+
+    it("still sends the version fields it was given, for the server to check", async () => {
+      const server = await captureServer();
+      try {
+        const apk = await writeApk();
+
+        await runScript([
+          apk,
+          "--version-name",
+          "1.2.0",
+          "--version-code",
+          "12",
+          "--server",
+          server.url,
+        ]);
+
+        expect(server.body()).toContain('name="versionName"\r\n\r\n1.2.0');
+        expect(server.body()).toContain('name="versionCode"\r\n\r\n12');
+      } finally {
+        await server.close();
+      }
+    });
+
+    it("accepts one version option without the other", async () => {
+      const apk = await writeApk();
+
+      const byCode = await runScript([apk, "--version-code", "12", "--server", serverUrl]);
+      expect(byCode.code).toBe(0);
+      await pool.query("TRUNCATE apk_releases RESTART IDENTITY");
+
+      const byName = await runScript([apk, "--version-name", "1.2.0", "--server", serverUrl]);
+      expect(byName.code).toBe(0);
+    });
+
+    it("prints the app and package the server detected on a line of their own", async () => {
+      const apk = await writeApk();
+
+      const result = await runScript([apk, "--server", serverUrl]);
+
+      const lines = result.stdout.split("\n");
+      expect(lines[0]).toMatch(
+        /^Uploaded app-debug\.apk \(version 1\.2\.0, code 12, [\d.]+ (B|KB)\) as release \d+$/,
+      );
+      expect(lines).toContain(`App ${SHOP.label} (${SHOP.packageName})`);
+    });
+
+    it("keeps the SHA-256 line after the app line", async () => {
+      const apk = await writeApk();
+
+      const result = await runScript([apk, "--server", serverUrl]);
+
+      const lines = result.stdout.split("\n");
+      expect(lines.findIndex((line) => line.startsWith("App "))).toBeLessThan(
+        lines.findIndex((line) => line.startsWith("SHA-256 ")),
+      );
+    });
+
+    it("names both values when the server finds a version option that does not match", async () => {
+      const apk = await writeApk();
+
+      const result = await runScript([apk, "--version-code", "5", "--server", serverUrl]);
+
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain("422");
+      expect(result.stderr).toContain("manifest_mismatch");
+      expect(result.stderr).toContain("5");
+      expect(result.stderr).toContain("12");
+      expect(await releaseCount()).toBe(0);
+    });
+
+    it("passes on the server's message for a file that is not a valid APK", async () => {
+      const apk = await writeApk("app.apk", fakeApk(2048));
+
+      const result = await runScript([apk, "--server", serverUrl]);
+
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain("422");
+      expect(result.stderr).toContain("invalid_apk");
+      expect(await releaseCount()).toBe(0);
+    });
   });
 
   describe("fails with exit code 1 and a readable message", () => {
@@ -353,23 +502,14 @@ describe("upload script", () => {
       expect(result.stderr).toContain("Usage:");
     });
 
-    it("without --version-code", async () => {
+    it.each(["", "   "])("with --version-name=%j", async (versionName) => {
       const apk = await writeApk();
 
-      const result = await runScript([apk, "--version-name", "1.0.0", "--server", serverUrl]);
-
-      expect(result.code).toBe(2);
-      expect(result.stderr).toContain("--version-code");
-      expect(await releaseCount()).toBe(0);
-    });
-
-    it("without --version-name", async () => {
-      const apk = await writeApk();
-
-      const result = await runScript([apk, "--version-code", "1", "--server", serverUrl]);
+      const result = await runScript([apk, "--version-name", versionName, "--server", serverUrl]);
 
       expect(result.code).toBe(2);
       expect(result.stderr).toContain("--version-name");
+      expect(await releaseCount()).toBe(0);
     });
 
     it.each(["abc", "0", "-1", "1.5", ""])("with --version-code=%j", async (versionCode) => {
