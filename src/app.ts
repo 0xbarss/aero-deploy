@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import multipart from "@fastify/multipart";
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from "fastify";
 import type { Pool } from "pg";
+import { registerAppRoutes } from "./apks/apps-routes.js";
 import { registerApkRoutes } from "./apks/routes.js";
 import { handleFrameworkError, registerErrorHandling } from "./error-handler.js";
 
@@ -31,6 +32,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
 
   app.get("/api/health", () => ({ success: true, data: { status: "ok" } }));
   registerApkRoutes(app, { pool: options.pool, uploadDir: options.uploadDir });
+  registerAppRoutes(app, { pool: options.pool });
 
   await app.ready();
   return app;
