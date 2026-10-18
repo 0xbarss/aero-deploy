@@ -56,3 +56,9 @@ export class InvalidApkError extends ApiError {
     super(422, "invalid_apk", message, options);
   }
 }
+
+export class ManifestMismatchError extends ApiError {
+  constructor(message: string, options?: ErrorOptions) {
+    super(422, "manifest_mismatch", message, options);
+  }
+}

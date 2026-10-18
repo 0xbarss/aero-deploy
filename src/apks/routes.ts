@@ -4,8 +4,10 @@ import type { FastifyBaseLogger, FastifyInstance, FastifyRequest } from "fastify
 import type { Pool } from "pg";
 import { AppRequiredError, NotFoundError, ValidationError } from "../errors.js";
 import { formatFileSize } from "../format-file-size.js";
-import { countApps, findDefaultApp } from "./apps-repository.js";
+import { readApkManifest } from "./apk-manifest.js";
+import { countAppsWithReleases, findOrCreateAppByPackage } from "./apps-repository.js";
 import { buildContentDisposition } from "./content-disposition.js";
+import { assertFieldsMatchManifest, effectiveVersionName } from "./manifest-match.js";
 import { translateMultipartError } from "./multipart-errors.js";
 import { parseListQuery, parseReleaseFilter } from "./query-params.js";
 import { parseReleaseId } from "./release-id.js";
@@ -89,15 +91,27 @@ export function registerApkRoutes(app: FastifyInstance, options: ApkRoutesOption
       if (stored === undefined) {
         throw new ValidationError("apk file is required");
       }
-      const release = parseUploadFields(Object.fromEntries(fields));
-      const defaultApp = await findDefaultApp(pool);
+      const uploadFields = parseUploadFields(Object.fromEntries(fields));
 
-      const storedName = await finalizeUpload(stored, release.versionCode, uploadDir);
+      // The APK itself says what it is; the form fields can only confirm that
+      const info = await readApkManifest(stored.path);
+      assertFieldsMatchManifest(uploadFields, info);
+      const versionName = effectiveVersionName(info);
+      const app = await findOrCreateAppByPackage(pool, {
+        requestedName: uploadFields.appName,
+        label: info.appLabel,
+        packageName: info.packageName,
+        debuggable: info.debuggable,
+      });
+
+      const storedName = await finalizeUpload(stored, info.versionCode, uploadDir);
       currentPath = join(uploadDir, storedName);
 
       const row = await insertRelease(pool, {
-        ...release,
-        appId: defaultApp.id,
+        appId: app.id,
+        versionName,
+        versionCode: info.versionCode,
+        releaseNotes: uploadFields.releaseNotes,
         sha256: stored.sha256,
         fileName: stored.originalName,
         filePath: storedName,
@@ -109,6 +123,9 @@ export function registerApkRoutes(app: FastifyInstance, options: ApkRoutesOption
         message: "APK successfully uploaded and registered",
         data: {
           id: row.id,
+          appId: app.id,
+          appName: app.name,
+          packageName: info.packageName,
           versionName: row.versionName,
           versionCode: row.versionCode,
           fileName: row.fileName,
@@ -139,7 +156,7 @@ export function registerApkRoutes(app: FastifyInstance, options: ApkRoutesOption
     if (
       filter.appId === undefined &&
       filter.packageName === undefined &&
-      (await countApps(pool)) > 1
+      (await countAppsWithReleases(pool)) > 1
     ) {
       throw new AppRequiredError();
     }
