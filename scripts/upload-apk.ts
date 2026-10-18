@@ -51,6 +51,7 @@ const uploadedSchema = z.object({
     versionCode: z.number(),
     fileName: z.string(),
     fileSize: z.string(),
+    sha256: z.string().optional(),
   }),
 });
 
@@ -246,10 +247,13 @@ async function upload(request: UploadRequest, io: ScriptIo): Promise<number> {
   if (response.ok) {
     const uploaded = uploadedSchema.safeParse(body);
     if (uploaded.success) {
-      const { id, versionName, versionCode, fileName, fileSize } = uploaded.data.data;
+      const { id, versionName, versionCode, fileName, fileSize, sha256 } = uploaded.data.data;
       io.stdout(
         `Uploaded ${fileName} (version ${versionName}, code ${versionCode}, ${fileSize}) as release ${id}`,
       );
+      if (sha256 !== undefined) {
+        io.stdout(`SHA-256 ${sha256}`);
+      }
     } else {
       io.stdout(`Uploaded ${basename(request.apkPath)} (HTTP ${response.status})`);
     }
