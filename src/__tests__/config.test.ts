@@ -6,6 +6,7 @@ import {
   loadConfig,
   loadDatabaseUrl,
   loadStorageConfig,
+  loadUploadToken,
 } from "../config.js";
 
 describe("loadConfig", () => {
@@ -90,5 +91,23 @@ describe("loadAdminToken", () => {
 
   it("returns the token without surrounding whitespace", () => {
     expect(loadAdminToken({ ADMIN_TOKEN: "  s3cret-token \n" })).toBe("s3cret-token");
+  });
+});
+
+describe("loadUploadToken", () => {
+  it("returns undefined when UPLOAD_TOKEN is not set", () => {
+    expect(loadUploadToken({})).toBeUndefined();
+  });
+
+  it.each(["", "   "])("treats a blank value %j as not set", (value) => {
+    expect(loadUploadToken({ UPLOAD_TOKEN: value })).toBeUndefined();
+  });
+
+  it("returns the token without surrounding whitespace", () => {
+    expect(loadUploadToken({ UPLOAD_TOKEN: "  up-token-1 \n" })).toBe("up-token-1");
+  });
+
+  it("does not read ADMIN_TOKEN", () => {
+    expect(loadUploadToken({ ADMIN_TOKEN: "admin-only" })).toBeUndefined();
   });
 });

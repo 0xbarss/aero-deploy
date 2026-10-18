@@ -576,3 +576,101 @@ describe("upload script", () => {
     expect(result.stderr).toBe("");
   });
 });
+
+describe("upload script with an upload token", () => {
+  const TOKEN = "script-upload-token-3b71e0";
+
+  async function startProtectedServer(): Promise<void> {
+    await testApp.close();
+    testApp = await createTestApp(pool, { uploadToken: TOKEN });
+    await testApp.app.listen({ host: "127.0.0.1", port: 0 });
+    serverUrl = `http://127.0.0.1:${(testApp.app.server.address() as AddressInfo).port}`;
+  }
+
+  it("sends UPLOAD_TOKEN from the environment as a bearer token", async () => {
+    await startProtectedServer();
+    const apk = await writeApk();
+
+    const result = await runScript([apk, "--server", serverUrl], { UPLOAD_TOKEN: TOKEN });
+
+    expect(result.code).toBe(0);
+    expect(await releaseCount()).toBe(1);
+  });
+
+  it("trims whitespace around the token", async () => {
+    await startProtectedServer();
+    const apk = await writeApk();
+
+    const result = await runScript([apk, "--server", serverUrl], { UPLOAD_TOKEN: ` ${TOKEN}\n` });
+
+    expect(result.code).toBe(0);
+  });
+
+  it("reports the server's 401 and exits 1 when no token is given", async () => {
+    await startProtectedServer();
+    const apk = await writeApk();
+
+    const result = await runScript([apk, "--server", serverUrl]);
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("HTTP 401 unauthorized");
+    expect(await releaseCount()).toBe(0);
+  });
+
+  it("reports the server's 401 and exits 1 when the token is wrong", async () => {
+    await startProtectedServer();
+    const apk = await writeApk();
+
+    const result = await runScript([apk, "--server", serverUrl], { UPLOAD_TOKEN: "wrong" });
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("HTTP 401 unauthorized");
+  });
+
+  it("does not print the token, on success or on failure", async () => {
+    await startProtectedServer();
+    const apk = await writeApk();
+
+    const accepted = await runScript([apk, "--server", serverUrl], { UPLOAD_TOKEN: TOKEN });
+    await pool.query("TRUNCATE apk_releases RESTART IDENTITY");
+    const rejected = await runScript([apk, "--server", serverUrl], { UPLOAD_TOKEN: `${TOKEN}x` });
+
+    for (const result of [accepted, rejected]) {
+      expect(result.stdout).not.toContain(TOKEN);
+      expect(result.stderr).not.toContain(TOKEN);
+    }
+  });
+
+  it("treats a blank UPLOAD_TOKEN as not set", async () => {
+    const apk = await writeApk();
+    let seen: string | undefined = "unset";
+    const probe = createServer((req, res) => {
+      seen = req.headers.authorization;
+      req.resume();
+      res.writeHead(500).end();
+    });
+    await new Promise<void>((done) => probe.listen(0, "127.0.0.1", done));
+    const url = `http://127.0.0.1:${(probe.address() as AddressInfo).port}`;
+
+    await runScript([apk, "--server", url], { UPLOAD_TOKEN: "   " });
+    probe.closeAllConnections();
+    await new Promise((done) => probe.close(done));
+
+    expect(seen).toBeUndefined();
+  });
+
+  it("still works against a server without an upload token", async () => {
+    const apk = await writeApk();
+
+    const result = await runScript([apk, "--server", serverUrl], { UPLOAD_TOKEN: TOKEN });
+
+    expect(result.code).toBe(0);
+  });
+
+  it("mentions UPLOAD_TOKEN in the help text", async () => {
+    const result = await runScript(["--help"]);
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("UPLOAD_TOKEN");
+  });
+});

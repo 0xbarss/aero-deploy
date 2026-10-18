@@ -13,7 +13,7 @@ export interface TestApp {
 
 export async function createTestApp(
   pool: Pool,
-  options: { maxUploadBytes?: number; adminToken?: string } = {},
+  options: { maxUploadBytes?: number; adminToken?: string; uploadToken?: string } = {},
 ): Promise<TestApp> {
   const uploadDir = await mkdtemp(join(tmpdir(), "aero-uploads-"));
   const app = await buildApp({
@@ -22,6 +22,7 @@ export async function createTestApp(
     uploadDir,
     maxUploadBytes: options.maxUploadBytes ?? 10 * 1024 * 1024,
     adminToken: options.adminToken,
+    uploadToken: options.uploadToken,
   });
   return {
     app,
