@@ -165,3 +165,19 @@ export async function findReleaseById(pool: Pool, id: number): Promise<ApkReleas
   const row = result.rows[0];
   return row === undefined ? undefined : toRelease(row);
 }
+
+export async function findReleasesWithoutHash(pool: Pool): Promise<ApkRelease[]> {
+  const result = await pool.query<ApkReleaseRow>(
+    "SELECT * FROM apk_releases WHERE sha256 IS NULL ORDER BY id",
+  );
+  return result.rows.map(toRelease);
+}
+
+/** Stores a hash only on a release that has none; returns false when nothing was updated. */
+export async function setReleaseHash(pool: Pool, id: number, sha256: string): Promise<boolean> {
+  const result = await pool.query(
+    "UPDATE apk_releases SET sha256 = $2 WHERE id = $1 AND sha256 IS NULL",
+    [id, sha256],
+  );
+  return result.rowCount === 1;
+}
