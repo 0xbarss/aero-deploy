@@ -160,10 +160,18 @@ export async function listReleases(
   };
 }
 
-export async function findReleaseById(pool: Pool, id: number): Promise<ApkRelease | undefined> {
-  const result = await pool.query<ApkReleaseRow>("SELECT * FROM apk_releases WHERE id = $1", [id]);
+export async function findReleaseById(
+  pool: Pool,
+  id: number,
+): Promise<ApkReleaseWithApp | undefined> {
+  const result = await pool.query<ApkReleaseWithAppRow>(
+    `SELECT r.*, a.name AS app_name
+       FROM apk_releases r JOIN apps a ON a.id = r.app_id
+      WHERE r.id = $1`,
+    [id],
+  );
   const row = result.rows[0];
-  return row === undefined ? undefined : toRelease(row);
+  return row === undefined ? undefined : { ...toRelease(row), appName: row.app_name };
 }
 
 export async function findReleasesWithoutHash(pool: Pool): Promise<ApkRelease[]> {

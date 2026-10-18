@@ -7,6 +7,7 @@ import { formatFileSize } from "../format-file-size.js";
 import { readApkManifest } from "./apk-manifest.js";
 import { countAppsWithReleases, findOrCreateAppByPackage } from "./apps-repository.js";
 import { buildContentDisposition } from "./content-disposition.js";
+import { downloadFileName } from "./download-name.js";
 import { assertFieldsMatchManifest, effectiveVersionName } from "./manifest-match.js";
 import { translateMultipartError } from "./multipart-errors.js";
 import { parseListQuery, parseReleaseFilter } from "./query-params.js";
@@ -198,7 +199,7 @@ export function registerApkRoutes(app: FastifyInstance, options: ApkRoutesOption
     return reply
       .header("content-type", "application/vnd.android.package-archive")
       .header("content-length", size)
-      .header("content-disposition", buildContentDisposition(release.fileName))
+      .header("content-disposition", buildContentDisposition(downloadFileName(release)))
       .send(handle.createReadStream({ autoClose: true }));
   });
 }
