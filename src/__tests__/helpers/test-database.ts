@@ -14,3 +14,9 @@ export async function resetDatabase(pool: Pool): Promise<void> {
   await pool.query("DROP SCHEMA public CASCADE");
   await pool.query("CREATE SCHEMA public");
 }
+
+/** Empties the releases and removes every app except the default one. */
+export async function clearReleasesAndExtraApps(pool: Pool): Promise<void> {
+  await pool.query("TRUNCATE apk_releases RESTART IDENTITY");
+  await pool.query("DELETE FROM apps WHERE package_name IS NOT NULL");
+}

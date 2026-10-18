@@ -4,6 +4,7 @@ import type { Pool } from "pg";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { migrateUp } from "../db/migrate.js";
 import { fakeApk, multipartBody, type MultipartPart } from "./helpers/multipart.js";
+import { defaultAppId, sha256Hex } from "./helpers/seed-release.js";
 import { createTestApp, type TestApp } from "./helpers/test-app.js";
 import { createTestPool, resetDatabase } from "./helpers/test-database.js";
 
@@ -62,6 +63,7 @@ describe("POST /api/apks/upload", () => {
         versionCode: 3,
         fileName: "app-debug.apk",
         fileSize: "4.0 KB",
+        sha256: sha256Hex(content),
       },
     });
 
@@ -70,17 +72,33 @@ describe("POST /api/apks/upload", () => {
       file_path: string;
       file_size: string;
       release_notes: string | null;
-    }>("SELECT file_name, file_path, file_size, release_notes FROM apk_releases");
+      sha256: string | null;
+      app_id: number;
+    }>("SELECT file_name, file_path, file_size, release_notes, sha256, app_id FROM apk_releases");
     expect(row.rows).toHaveLength(1);
     expect(row.rows[0]).toMatchObject({
       file_name: "app-debug.apk",
       file_size: String(content.length),
       release_notes: "Bug fixes",
+      sha256: sha256Hex(content),
+      app_id: await defaultAppId(pool),
     });
 
     const stored = await readFile(join(testApp.uploadDir, row.rows[0]?.file_path ?? "missing"));
     expect(stored.equals(content)).toBe(true);
     expect(await readdir(testApp.uploadDir)).toHaveLength(1);
+  });
+
+  it("hashes the exact bytes that were stored", async () => {
+    const content = fakeApk(300_000);
+    await upload([{ name: "apk", filename: "big.apk", content }, ...validFields()]);
+
+    const row = await pool.query<{ file_path: string; sha256: string }>(
+      "SELECT file_path, sha256 FROM apk_releases",
+    );
+    const stored = await readFile(join(testApp.uploadDir, row.rows[0]?.file_path ?? "missing"));
+    expect(row.rows[0]?.sha256).toBe(sha256Hex(stored));
+    expect(row.rows[0]?.sha256).toBe(sha256Hex(content));
   });
 
   it("accepts text fields sent after the file, as curl does", async () => {
