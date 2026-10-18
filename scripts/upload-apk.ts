@@ -27,6 +27,10 @@ Options:
   --server <url>          Server address (default: $AERODEPLOY_URL, then ${DEFAULT_SERVER})
   -h, --help              Show this text
 
+Environment:
+  AERODEPLOY_URL          Server address, used when --server is not given
+  UPLOAD_TOKEN            Token for a server that requires one; sent as a bearer token
+
 Exit codes: 0 uploaded, 1 upload failed, 2 invalid arguments.`;
 
 export interface ScriptIo {
@@ -40,6 +44,7 @@ interface UploadRequest {
   versionCode: string | undefined;
   notes: string | undefined;
   server: string;
+  uploadToken: string | undefined;
 }
 
 /** Thrown for argument problems; `run` turns it into the usage exit code. */
@@ -111,7 +116,14 @@ function readArguments(argv: string[], env: NodeJS.ProcessEnv): UploadRequest | 
     versionCode,
     notes: values.notes,
     server: normalizeServer(values.server ?? env.AERODEPLOY_URL ?? DEFAULT_SERVER),
+    uploadToken: readUploadToken(env),
   };
+}
+
+/** Read from the environment only, so the token does not appear in the process list or shell history. */
+function readUploadToken(env: NodeJS.ProcessEnv): string | undefined {
+  const token = env.UPLOAD_TOKEN?.trim();
+  return token === undefined || token === "" ? undefined : token;
 }
 
 function normalizeServer(raw: string): string {
@@ -228,12 +240,18 @@ async function upload(request: UploadRequest, io: ScriptIo): Promise<number> {
     fields.push(["releaseNotes", request.notes]);
   }
   const boundary = `aerodeploy-${randomUUID()}`;
+  const headers: http.OutgoingHttpHeaders = {
+    "content-type": `multipart/form-data; boundary=${boundary}`,
+  };
+  if (request.uploadToken !== undefined) {
+    headers.authorization = `Bearer ${request.uploadToken}`;
+  }
 
   let response: UploadResponse;
   try {
     response = await postStream(
       new URL(`${request.server}/api/apks/upload`),
-      { "content-type": `multipart/form-data; boundary=${boundary}` },
+      headers,
       multipartBody(boundary, fields, request.apkPath),
     );
   } catch (error) {
