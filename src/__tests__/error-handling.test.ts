@@ -55,7 +55,7 @@ describe("logging of rejected requests", () => {
     try {
       const { payload, headers } = multipartBody([
         { name: "apk", filename: "app.apk", content: fakeApk() },
-        { name: "versionCode", value: "3" },
+        { name: "versionCode", value: "abc" },
         { name: "releaseNotes", value: "needle-4f9a" },
       ]);
       const response = await app.inject({

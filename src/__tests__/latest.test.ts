@@ -111,6 +111,18 @@ describe("GET /api/apks/latest", () => {
     });
   });
 
+  describe("with an empty default app next to one app that has releases", () => {
+    it("does not ask for an app", async () => {
+      const shopId = await seedApp(pool, { name: "My Shop", packageName: "com.example.shop" });
+      await seedRelease(pool, testApp.uploadDir, { appId: shopId, versionCode: 12 });
+
+      const response = await latest();
+
+      expect(response.statusCode).toBe(200);
+      expect(response.json<{ data: LatestData }>().data.versionCode).toBe(12);
+    });
+  });
+
   describe("with several apps", () => {
     let shopId: number;
     let notesId: number;

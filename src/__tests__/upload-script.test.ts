@@ -8,6 +8,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { run } from "../../scripts/upload-apk.js";
 import { migrateUp } from "../db/migrate.js";
 import { fakeApk } from "./helpers/multipart.js";
+import { readFixture, SHOP } from "./helpers/fixtures.js";
 import { sha256Hex } from "./helpers/seed-release.js";
 import { createTestApp, type TestApp } from "./helpers/test-app.js";
 import { createTestPool, resetDatabase } from "./helpers/test-database.js";
@@ -40,9 +41,9 @@ afterEach(async () => {
   await rm(workDir, { recursive: true, force: true });
 });
 
-async function writeApk(name = "app-debug.apk", content = fakeApk(4096)): Promise<string> {
+async function writeApk(name = "app-debug.apk", content?: Buffer): Promise<string> {
   const path = join(workDir, name);
-  await writeFile(path, content);
+  await writeFile(path, content ?? (await readFixture(SHOP.fixture)));
   return path;
 }
 
@@ -63,15 +64,15 @@ async function releaseCount(): Promise<number> {
 
 describe("upload script", () => {
   it("uploads the file with its version fields and exits 0", async () => {
-    const content = fakeApk(4096);
+    const content = await readFixture(SHOP.fixture);
     const apk = await writeApk("app-debug.apk", content);
 
     const result = await runScript([
       apk,
       "--version-name",
-      "1.0.2",
+      "1.2.0",
       "--version-code",
-      "3",
+      "12",
       "--notes",
       "Nightly build",
       "--server",
@@ -80,7 +81,7 @@ describe("upload script", () => {
 
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("app-debug.apk");
-    expect(result.stdout).toContain("1.0.2");
+    expect(result.stdout).toContain("1.2.0");
     expect(result.stderr).toBe("");
 
     const rows = await pool.query<{
@@ -92,8 +93,8 @@ describe("upload script", () => {
     }>("SELECT * FROM apk_releases");
     expect(rows.rows).toHaveLength(1);
     expect(rows.rows[0]).toMatchObject({
-      version_name: "1.0.2",
-      version_code: 3,
+      version_name: "1.2.0",
+      version_code: 12,
       file_name: "app-debug.apk",
       release_notes: "Nightly build",
     });
@@ -102,15 +103,15 @@ describe("upload script", () => {
   });
 
   it("prints the SHA-256 the server returned, on its own line", async () => {
-    const content = fakeApk(4096);
+    const content = await readFixture(SHOP.fixture);
     const apk = await writeApk("app-debug.apk", content);
 
     const result = await runScript([
       apk,
       "--version-name",
-      "1.0.2",
+      "1.2.0",
       "--version-code",
-      "3",
+      "12",
       "--server",
       serverUrl,
     ]);
@@ -148,9 +149,9 @@ describe("upload script", () => {
       const result = await runScript([
         apk,
         "--version-name",
-        "1.0.0",
+        "1.2.0",
         "--version-code",
-        "1",
+        "12",
         "--server",
         `http://127.0.0.1:${port}`,
       ]);
@@ -170,9 +171,9 @@ describe("upload script", () => {
     const result = await runScript([
       apk,
       "--version-name",
-      "1.0.0 beta",
+      "1.2.0",
       "--version-code",
-      "1",
+      "12",
       "--notes",
       notes,
       "--server",
@@ -187,7 +188,7 @@ describe("upload script", () => {
     }>("SELECT file_name, version_name, release_notes FROM apk_releases");
     expect(row.rows[0]).toEqual({
       file_name: "my app (1).apk",
-      version_name: "1.0.0 beta",
+      version_name: "1.2.0",
       release_notes: notes,
     });
   });
@@ -198,9 +199,9 @@ describe("upload script", () => {
     const result = await runScript([
       apk,
       "--version-name",
-      "1.0.0",
+      "1.2.0",
       "--version-code",
-      "1",
+      "12",
       "--server",
       serverUrl,
     ]);
@@ -215,7 +216,7 @@ describe("upload script", () => {
   it("reads the server address from AERODEPLOY_URL, with a trailing slash", async () => {
     const apk = await writeApk();
 
-    const result = await runScript([apk, "--version-name", "1.0.0", "--version-code", "1"], {
+    const result = await runScript([apk, "--version-name", "1.2.0", "--version-code", "12"], {
       AERODEPLOY_URL: `${serverUrl}/`,
     });
 
@@ -227,7 +228,7 @@ describe("upload script", () => {
     const apk = await writeApk();
 
     const result = await runScript(
-      [apk, "--version-name", "1.0.0", "--version-code", "1", "--server", serverUrl],
+      [apk, "--version-name", "1.2.0", "--version-code", "12", "--server", serverUrl],
       { AERODEPLOY_URL: "http://127.0.0.1:1" },
     );
 
@@ -237,7 +238,7 @@ describe("upload script", () => {
   describe("fails with exit code 1 and a readable message", () => {
     it("on a duplicate versionCode, naming the server's error code", async () => {
       const apk = await writeApk();
-      const args = [apk, "--version-name", "1.0.0", "--version-code", "1", "--server", serverUrl];
+      const args = [apk, "--version-name", "1.2.0", "--version-code", "12", "--server", serverUrl];
       expect((await runScript(args)).code).toBe(0);
 
       const result = await runScript(args);
@@ -245,7 +246,7 @@ describe("upload script", () => {
       expect(result.code).toBe(1);
       expect(result.stderr).toContain("409");
       expect(result.stderr).toContain("version_code_exists");
-      expect(result.stderr).toContain("versionCode 1 is already registered");
+      expect(result.stderr).toContain("versionCode 12 is already registered");
       expect(await releaseCount()).toBe(1);
     });
 
@@ -255,9 +256,9 @@ describe("upload script", () => {
       const result = await runScript([
         apk,
         "--version-name",
-        "1.0.0",
+        "1.2.0",
         "--version-code",
-        "1",
+        "12",
         "--server",
         serverUrl,
       ]);
@@ -274,9 +275,9 @@ describe("upload script", () => {
       const result = await runScript([
         apk,
         "--version-name",
-        "1.0.0",
+        "1.2.0",
         "--version-code",
-        "1",
+        "12",
         "--server",
         serverUrl,
       ]);
@@ -298,9 +299,9 @@ describe("upload script", () => {
       const result = await runScript([
         apk,
         "--version-name",
-        "1.0.0",
+        "1.2.0",
         "--version-code",
-        "1",
+        "12",
         "--server",
         serverUrl,
       ]);
@@ -315,9 +316,9 @@ describe("upload script", () => {
       const result = await runScript([
         join(workDir, "missing.apk"),
         "--version-name",
-        "1.0.0",
+        "1.2.0",
         "--version-code",
-        "1",
+        "12",
         "--server",
         serverUrl,
       ]);
@@ -332,9 +333,9 @@ describe("upload script", () => {
       const result = await runScript([
         workDir,
         "--version-name",
-        "1.0.0",
+        "1.2.0",
         "--version-code",
-        "1",
+        "12",
         "--server",
         serverUrl,
       ]);
