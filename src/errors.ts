@@ -22,6 +22,23 @@ export class AppRequiredError extends ApiError {
   }
 }
 
+export class UnauthorizedError extends ApiError {
+  constructor(options?: ErrorOptions) {
+    super(401, "unauthorized", "A valid admin token is required", options);
+  }
+}
+
+export class AdminDisabledError extends ApiError {
+  constructor(options?: ErrorOptions) {
+    super(
+      403,
+      "admin_disabled",
+      "Admin routes are disabled because ADMIN_TOKEN is not set",
+      options,
+    );
+  }
+}
+
 export class NotFoundError extends ApiError {
   constructor(code: string, message: string, options?: ErrorOptions) {
     super(404, code, message, options);

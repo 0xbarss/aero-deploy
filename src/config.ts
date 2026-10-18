@@ -58,6 +58,12 @@ export function loadDatabaseUrl(
   return raw;
 }
 
+/** A blank value counts as not set, so a bare `ADMIN_TOKEN=` line in `.env` leaves admin routes off. */
+export function loadAdminToken(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  const token = env.ADMIN_TOKEN?.trim();
+  return token === undefined || token === "" ? undefined : token;
+}
+
 export interface StorageConfig {
   uploadDir: string;
   maxUploadBytes: number;
