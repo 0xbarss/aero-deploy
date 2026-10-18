@@ -13,6 +13,8 @@ export interface AppOptions {
   maxUploadBytes: number;
   /** Admin routes are refused while this is undefined. */
   adminToken?: string | undefined;
+  /** Uploads are open while this is undefined. */
+  uploadToken?: string | undefined;
 }
 
 const MAX_TEXT_FIELD_BYTES = 64 * 1024;
@@ -37,6 +39,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     pool: options.pool,
     uploadDir: options.uploadDir,
     adminToken: options.adminToken,
+    uploadToken: options.uploadToken,
   });
   registerAppRoutes(app, { pool: options.pool });
 

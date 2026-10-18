@@ -58,10 +58,19 @@ export function loadDatabaseUrl(
   return raw;
 }
 
+function readOptionalToken(env: NodeJS.ProcessEnv, variable: string): string | undefined {
+  const token = env[variable]?.trim();
+  return token === undefined || token === "" ? undefined : token;
+}
+
 /** A blank value counts as not set, so a bare `ADMIN_TOKEN=` line in `.env` leaves admin routes off. */
 export function loadAdminToken(env: NodeJS.ProcessEnv = process.env): string | undefined {
-  const token = env.ADMIN_TOKEN?.trim();
-  return token === undefined || token === "" ? undefined : token;
+  return readOptionalToken(env, "ADMIN_TOKEN");
+}
+
+/** A blank value counts as not set, so a bare `UPLOAD_TOKEN=` line in `.env` leaves uploads open. */
+export function loadUploadToken(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  return readOptionalToken(env, "UPLOAD_TOKEN");
 }
 
 export interface StorageConfig {

@@ -2,7 +2,7 @@ import { open, rm, type FileHandle } from "node:fs/promises";
 import { join } from "node:path";
 import type { FastifyBaseLogger, FastifyInstance, FastifyRequest } from "fastify";
 import type { Pool } from "pg";
-import { assertAdmin } from "../admin-auth.js";
+import { assertAdmin, assertUploadAllowed } from "../admin-auth.js";
 import { AppRequiredError, NotFoundError, ValidationError } from "../errors.js";
 import { formatFileSize } from "../format-file-size.js";
 import { readApkManifest } from "./apk-manifest.js";
@@ -29,6 +29,7 @@ export interface ApkRoutesOptions {
   pool: Pool;
   uploadDir: string;
   adminToken?: string | undefined;
+  uploadToken?: string | undefined;
 }
 
 async function removeFile(path: string, log: FastifyBaseLogger): Promise<void> {
@@ -72,9 +73,10 @@ function latestView(request: FastifyRequest, release: ApkRelease) {
 }
 
 export function registerApkRoutes(app: FastifyInstance, options: ApkRoutesOptions): void {
-  const { pool, uploadDir, adminToken } = options;
+  const { pool, uploadDir, adminToken, uploadToken } = options;
 
   app.post("/api/apks/upload", async (request, reply) => {
+    assertUploadAllowed(request, { uploadToken, adminToken });
     const fields = new Map<string, string>();
     let stored: StoredUpload | undefined;
     let currentPath: string | undefined;

@@ -23,8 +23,8 @@ export class AppRequiredError extends ApiError {
 }
 
 export class UnauthorizedError extends ApiError {
-  constructor(options?: ErrorOptions) {
-    super(401, "unauthorized", "A valid admin token is required", options);
+  constructor(message = "A valid admin token is required", options?: ErrorOptions) {
+    super(401, "unauthorized", message, options);
   }
 }
 
