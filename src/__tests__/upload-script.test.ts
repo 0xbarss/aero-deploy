@@ -1,4 +1,5 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -7,6 +8,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { run } from "../../scripts/upload-apk.js";
 import { migrateUp } from "../db/migrate.js";
 import { fakeApk } from "./helpers/multipart.js";
+import { sha256Hex } from "./helpers/seed-release.js";
 import { createTestApp, type TestApp } from "./helpers/test-app.js";
 import { createTestPool, resetDatabase } from "./helpers/test-database.js";
 
@@ -97,6 +99,68 @@ describe("upload script", () => {
     });
     const stored = await readFile(join(testApp.uploadDir, rows.rows[0]?.file_path ?? "missing"));
     expect(stored.equals(content)).toBe(true);
+  });
+
+  it("prints the SHA-256 the server returned, on its own line", async () => {
+    const content = fakeApk(4096);
+    const apk = await writeApk("app-debug.apk", content);
+
+    const result = await runScript([
+      apk,
+      "--version-name",
+      "1.0.2",
+      "--version-code",
+      "3",
+      "--server",
+      serverUrl,
+    ]);
+
+    expect(result.code).toBe(0);
+    expect(result.stdout.split("\n")).toContain(`SHA-256 ${sha256Hex(content)}`);
+    const row = await pool.query<{ sha256: string }>("SELECT sha256 FROM apk_releases");
+    expect(row.rows[0]?.sha256).toBe(sha256Hex(content));
+  });
+
+  it("still reports the upload when the server response has no hash", async () => {
+    const apk = await writeApk();
+    const older = createServer((request, response) => {
+      request.resume();
+      request.on("end", () => {
+        response.writeHead(201, { "content-type": "application/json" });
+        response.end(
+          JSON.stringify({
+            success: true,
+            data: {
+              id: 7,
+              versionName: "1.0.0",
+              versionCode: 1,
+              fileName: "app-debug.apk",
+              fileSize: "4.0 KB",
+            },
+          }),
+        );
+      });
+    });
+    await new Promise<void>((resolve) => older.listen(0, "127.0.0.1", resolve));
+    try {
+      const { port } = older.address() as AddressInfo;
+
+      const result = await runScript([
+        apk,
+        "--version-name",
+        "1.0.0",
+        "--version-code",
+        "1",
+        "--server",
+        `http://127.0.0.1:${port}`,
+      ]);
+
+      expect(result.code).toBe(0);
+      expect(result.stdout).toContain("as release 7");
+      expect(result.stdout).not.toContain("SHA-256");
+    } finally {
+      await new Promise<void>((resolve) => older.close(() => resolve()));
+    }
   });
 
   it("sends file names and notes with spaces, quotes, newlines and non-ASCII text unchanged", async () => {
