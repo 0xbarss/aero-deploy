@@ -1,8 +1,8 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { createWriteStream } from "node:fs";
 import { open, rename, rm, stat } from "node:fs/promises";
 import { join, posix } from "node:path";
-import type { Readable } from "node:stream";
+import { Transform, type Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { PayloadTooLargeError, ValidationError } from "../errors.js";
 
@@ -14,6 +14,7 @@ export interface StoredUpload {
   path: string;
   originalName: string;
   size: number;
+  sha256: string;
 }
 
 /** Busboy streams do not throw on the size limit, they stop early and set `truncated`. */
@@ -53,8 +54,15 @@ export async function saveUpload(
 ): Promise<StoredUpload> {
   const originalName = sanitizeFileName(clientFileName);
   const path = join(uploadDir, `.upload-${randomUUID()}.tmp`);
+  const hash = createHash("sha256");
+  const hashing = new Transform({
+    transform(chunk: Buffer, _encoding, callback) {
+      hash.update(chunk);
+      callback(null, chunk);
+    },
+  });
   try {
-    await pipeline(file, createWriteStream(path));
+    await pipeline(file, hashing, createWriteStream(path));
     if (file.truncated) {
       throw new PayloadTooLargeError("apk file exceeds the maximum upload size");
     }
@@ -62,7 +70,7 @@ export async function saveUpload(
       throw new ValidationError("apk file is not a valid APK archive");
     }
     const { size } = await stat(path);
-    return { path, originalName, size };
+    return { path, originalName, size, sha256: hash.digest("hex") };
   } catch (error) {
     await rm(path, { force: true });
     throw error;

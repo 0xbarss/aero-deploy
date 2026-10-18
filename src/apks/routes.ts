@@ -1,13 +1,22 @@
 import { open, rm, type FileHandle } from "node:fs/promises";
 import { join } from "node:path";
-import type { FastifyBaseLogger, FastifyInstance } from "fastify";
+import type { FastifyBaseLogger, FastifyInstance, FastifyRequest } from "fastify";
 import type { Pool } from "pg";
-import { NotFoundError, ValidationError } from "../errors.js";
+import { AppRequiredError, NotFoundError, ValidationError } from "../errors.js";
 import { formatFileSize } from "../format-file-size.js";
+import { countApps, findDefaultApp } from "./apps-repository.js";
 import { buildContentDisposition } from "./content-disposition.js";
 import { translateMultipartError } from "./multipart-errors.js";
+import { parseListQuery, parseReleaseFilter } from "./query-params.js";
 import { parseReleaseId } from "./release-id.js";
-import { findLatestRelease, findReleaseById, insertRelease } from "./repository.js";
+import {
+  findLatestRelease,
+  findReleaseById,
+  insertRelease,
+  listReleases,
+  type ApkRelease,
+  type ApkReleaseWithApp,
+} from "./repository.js";
 import { finalizeUpload, saveUpload, type StoredUpload } from "./storage.js";
 import { parseUploadFields } from "./upload-fields.js";
 
@@ -22,6 +31,38 @@ async function removeFile(path: string, log: FastifyBaseLogger): Promise<void> {
   } catch (error) {
     log.warn({ event: "upload.cleanup_failed", path, err: error });
   }
+}
+
+function downloadUrl(request: FastifyRequest, releaseId: number): string {
+  return `${request.protocol}://${request.host}/api/apks/download/${releaseId}`;
+}
+
+function listItem(request: FastifyRequest, release: ApkReleaseWithApp) {
+  return {
+    id: release.id,
+    appId: release.appId,
+    appName: release.appName,
+    versionName: release.versionName,
+    versionCode: release.versionCode,
+    fileName: release.fileName,
+    fileSize: release.fileSize,
+    sha256: release.sha256,
+    releaseNotes: release.releaseNotes,
+    createdAt: release.createdAt.toISOString(),
+    downloadUrl: downloadUrl(request, release.id),
+  };
+}
+
+function latestView(request: FastifyRequest, release: ApkRelease) {
+  return {
+    id: release.id,
+    versionName: release.versionName,
+    versionCode: release.versionCode,
+    fileSize: release.fileSize,
+    sha256: release.sha256,
+    releaseNotes: release.releaseNotes,
+    downloadUrl: downloadUrl(request, release.id),
+  };
 }
 
 export function registerApkRoutes(app: FastifyInstance, options: ApkRoutesOptions): void {
@@ -49,12 +90,15 @@ export function registerApkRoutes(app: FastifyInstance, options: ApkRoutesOption
         throw new ValidationError("apk file is required");
       }
       const release = parseUploadFields(Object.fromEntries(fields));
+      const defaultApp = await findDefaultApp(pool);
 
       const storedName = await finalizeUpload(stored, release.versionCode, uploadDir);
       currentPath = join(uploadDir, storedName);
 
       const row = await insertRelease(pool, {
         ...release,
+        appId: defaultApp.id,
+        sha256: stored.sha256,
         fileName: stored.originalName,
         filePath: storedName,
         fileSize: stored.size,
@@ -69,6 +113,7 @@ export function registerApkRoutes(app: FastifyInstance, options: ApkRoutesOption
           versionCode: row.versionCode,
           fileName: row.fileName,
           fileSize: formatFileSize(row.fileSize),
+          sha256: stored.sha256,
         },
       });
     } catch (error) {
@@ -79,21 +124,30 @@ export function registerApkRoutes(app: FastifyInstance, options: ApkRoutesOption
     }
   });
 
+  app.get("/api/apks", async (request) => {
+    const { filter, page } = parseListQuery(request.query);
+    const { items, total } = await listReleases(pool, filter, page);
+    return {
+      success: true,
+      data: items.map((release) => listItem(request, release)),
+      pagination: { limit: page.limit, offset: page.offset, total },
+    };
+  });
+
   app.get("/api/apks/latest", async (request) => {
-    const release = await findLatestRelease(pool);
+    const filter = parseReleaseFilter(request.query);
+    if (
+      filter.appId === undefined &&
+      filter.packageName === undefined &&
+      (await countApps(pool)) > 1
+    ) {
+      throw new AppRequiredError();
+    }
+    const release = await findLatestRelease(pool, filter);
     if (release === undefined) {
       throw new NotFoundError("no_releases", "No APK has been uploaded yet");
     }
-    return {
-      success: true,
-      data: {
-        id: release.id,
-        versionName: release.versionName,
-        versionCode: release.versionCode,
-        releaseNotes: release.releaseNotes,
-        downloadUrl: `${request.protocol}://${request.host}/api/apks/download/${release.id}`,
-      },
-    };
+    return { success: true, data: latestView(request, release) };
   });
 
   app.get<{ Params: { id: string } }>("/api/apks/download/:id", async (request, reply) => {
