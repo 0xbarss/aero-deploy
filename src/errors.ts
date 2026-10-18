@@ -50,3 +50,9 @@ export class RequestAbortedError extends ApiError {
     );
   }
 }
+
+export class InvalidApkError extends ApiError {
+  constructor(message: string, options?: ErrorOptions) {
+    super(422, "invalid_apk", message, options);
+  }
+}
