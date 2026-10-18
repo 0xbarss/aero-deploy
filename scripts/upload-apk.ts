@@ -15,13 +15,14 @@ const EXIT_OK = 0;
 const EXIT_FAILED = 1;
 const EXIT_USAGE = 2;
 
-const USAGE = `Usage: upload-apk <apk-path> --version-name <name> --version-code <number> [options]
+const USAGE = `Usage: upload-apk <apk-path> [options]
 
-Uploads a built APK to an AeroDeploy server.
+Uploads a built APK to an AeroDeploy server. The server reads the app, package, version name
+and version code from the APK itself and prints back what it found.
 
 Options:
-  --version-name <name>   Version name, e.g. 1.0.2 (required)
-  --version-code <n>      Positive integer, unique per release (required)
+  --version-name <name>   Check the APK's version name, e.g. 1.0.2 (optional)
+  --version-code <n>      Check the APK's version code, a positive integer (optional)
   --notes <text>          Release notes
   --server <url>          Server address (default: $AERODEPLOY_URL, then ${DEFAULT_SERVER})
   -h, --help              Show this text
@@ -35,8 +36,8 @@ export interface ScriptIo {
 
 interface UploadRequest {
   apkPath: string;
-  versionName: string;
-  versionCode: string;
+  versionName: string | undefined;
+  versionCode: string | undefined;
   notes: string | undefined;
   server: string;
 }
@@ -52,6 +53,9 @@ const uploadedSchema = z.object({
     fileName: z.string(),
     fileSize: z.string(),
     sha256: z.string().optional(),
+    // Missing when the server is older than the manifest-based upload
+    appName: z.string().optional(),
+    packageName: z.string().optional(),
   }),
 });
 
@@ -91,15 +95,13 @@ function readArguments(argv: string[], env: NodeJS.ProcessEnv): UploadRequest | 
     throw new UsageError("only one apk path can be uploaded at a time");
   }
 
+  // Both options are optional claims about the APK; the server rejects a value that disagrees
   const versionName = values["version-name"]?.trim();
-  if (!versionName) {
-    throw new UsageError("--version-name is required");
+  if (versionName === "") {
+    throw new UsageError("--version-name must not be empty");
   }
   const versionCode = values["version-code"];
-  if (versionCode === undefined) {
-    throw new UsageError("--version-code is required");
-  }
-  if (!/^[1-9]\d*$/.test(versionCode)) {
+  if (versionCode !== undefined && !/^[1-9]\d*$/.test(versionCode)) {
     throw new UsageError("--version-code must be a positive integer");
   }
 
@@ -215,10 +217,13 @@ function postStream(
 }
 
 async function upload(request: UploadRequest, io: ScriptIo): Promise<number> {
-  const fields: [string, string][] = [
-    ["versionName", request.versionName],
-    ["versionCode", request.versionCode],
-  ];
+  const fields: [string, string][] = [];
+  if (request.versionName !== undefined) {
+    fields.push(["versionName", request.versionName]);
+  }
+  if (request.versionCode !== undefined) {
+    fields.push(["versionCode", request.versionCode]);
+  }
   if (request.notes !== undefined) {
     fields.push(["releaseNotes", request.notes]);
   }
@@ -247,10 +252,14 @@ async function upload(request: UploadRequest, io: ScriptIo): Promise<number> {
   if (response.ok) {
     const uploaded = uploadedSchema.safeParse(body);
     if (uploaded.success) {
-      const { id, versionName, versionCode, fileName, fileSize, sha256 } = uploaded.data.data;
+      const { id, versionName, versionCode, fileName, fileSize, sha256, appName, packageName } =
+        uploaded.data.data;
       io.stdout(
         `Uploaded ${fileName} (version ${versionName}, code ${versionCode}, ${fileSize}) as release ${id}`,
       );
+      if (appName !== undefined && packageName !== undefined) {
+        io.stdout(`App ${appName} (${packageName})`);
+      }
       if (sha256 !== undefined) {
         io.stdout(`SHA-256 ${sha256}`);
       }
