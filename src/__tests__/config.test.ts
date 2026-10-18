@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { resolve } from "node:path";
-import { ConfigError, loadConfig, loadDatabaseUrl, loadStorageConfig } from "../config.js";
+import {
+  ConfigError,
+  loadAdminToken,
+  loadConfig,
+  loadDatabaseUrl,
+  loadStorageConfig,
+} from "../config.js";
 
 describe("loadConfig", () => {
   it("falls back to defaults when nothing is set", () => {
@@ -70,5 +76,19 @@ describe("loadStorageConfig", () => {
 
   it("rejects an empty UPLOAD_DIR", () => {
     expect(() => loadStorageConfig({ UPLOAD_DIR: "  " })).toThrow(ConfigError);
+  });
+});
+
+describe("loadAdminToken", () => {
+  it("returns undefined when ADMIN_TOKEN is not set", () => {
+    expect(loadAdminToken({})).toBeUndefined();
+  });
+
+  it.each(["", "   "])("treats a blank value %j as not set", (value) => {
+    expect(loadAdminToken({ ADMIN_TOKEN: value })).toBeUndefined();
+  });
+
+  it("returns the token without surrounding whitespace", () => {
+    expect(loadAdminToken({ ADMIN_TOKEN: "  s3cret-token \n" })).toBe("s3cret-token");
   });
 });
