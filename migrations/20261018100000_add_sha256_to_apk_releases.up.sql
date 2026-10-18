@@ -1,0 +1,1 @@
+ALTER TABLE apk_releases ADD COLUMN sha256 CHAR(64);
