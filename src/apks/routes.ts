@@ -2,6 +2,7 @@ import { open, rm, type FileHandle } from "node:fs/promises";
 import { join } from "node:path";
 import type { FastifyBaseLogger, FastifyInstance, FastifyRequest } from "fastify";
 import type { Pool } from "pg";
+import { assertAdmin } from "../admin-auth.js";
 import { AppRequiredError, NotFoundError, ValidationError } from "../errors.js";
 import { formatFileSize } from "../format-file-size.js";
 import { readApkManifest } from "./apk-manifest.js";
@@ -13,6 +14,7 @@ import { translateMultipartError } from "./multipart-errors.js";
 import { parseListQuery, parseReleaseFilter } from "./query-params.js";
 import { parseReleaseId } from "./release-id.js";
 import {
+  deleteRelease,
   findLatestRelease,
   findReleaseById,
   insertRelease,
@@ -20,12 +22,13 @@ import {
   type ApkRelease,
   type ApkReleaseWithApp,
 } from "./repository.js";
-import { finalizeUpload, saveUpload, type StoredUpload } from "./storage.js";
+import { finalizeUpload, removeStoredFile, saveUpload, type StoredUpload } from "./storage.js";
 import { parseUploadFields } from "./upload-fields.js";
 
 export interface ApkRoutesOptions {
   pool: Pool;
   uploadDir: string;
+  adminToken?: string | undefined;
 }
 
 async function removeFile(path: string, log: FastifyBaseLogger): Promise<void> {
@@ -69,7 +72,7 @@ function latestView(request: FastifyRequest, release: ApkRelease) {
 }
 
 export function registerApkRoutes(app: FastifyInstance, options: ApkRoutesOptions): void {
-  const { pool, uploadDir } = options;
+  const { pool, uploadDir, adminToken } = options;
 
   app.post("/api/apks/upload", async (request, reply) => {
     const fields = new Map<string, string>();
@@ -201,5 +204,33 @@ export function registerApkRoutes(app: FastifyInstance, options: ApkRoutesOption
       .header("content-length", size)
       .header("content-disposition", buildContentDisposition(downloadFileName(release)))
       .send(handle.createReadStream({ autoClose: true }));
+  });
+
+  app.delete<{ Params: { id: string } }>("/api/apks/:id", async (request, reply) => {
+    assertAdmin(request, adminToken);
+    const id = parseReleaseId(request.params.id);
+    const release = await deleteRelease(pool, id);
+    if (release === undefined) {
+      throw new NotFoundError("release_not_found", `Release ${id} not found`);
+    }
+
+    // The row is gone first, so a failure here leaves at most an orphan file, never a dead row
+    try {
+      if (!(await removeStoredFile(uploadDir, release.filePath))) {
+        request.log.warn({
+          event: "release.file_removal_skipped",
+          releaseId: id,
+          path: release.filePath,
+        });
+      }
+    } catch (error) {
+      request.log.warn({
+        event: "release.file_removal_failed",
+        releaseId: id,
+        path: release.filePath,
+        err: error,
+      });
+    }
+    return reply.code(204).send();
   });
 }

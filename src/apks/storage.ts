@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { createWriteStream } from "node:fs";
 import { open, rename, rm, stat } from "node:fs/promises";
-import { join, posix } from "node:path";
+import { isAbsolute, join, posix, relative, resolve } from "node:path";
 import { Transform, type Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { PayloadTooLargeError, ValidationError } from "../errors.js";
@@ -86,4 +86,18 @@ export async function finalizeUpload(
   const storedName = `${versionCode}-${randomUUID()}.apk`;
   await rename(stored.path, join(uploadDir, storedName));
   return storedName;
+}
+
+/**
+ * Removes a stored file given its name relative to `uploadDir`. A missing file is not an error.
+ * Returns false without touching anything when the name points outside `uploadDir`.
+ */
+export async function removeStoredFile(uploadDir: string, storedName: string): Promise<boolean> {
+  const path = resolve(uploadDir, storedName);
+  const fromRoot = relative(resolve(uploadDir), path);
+  if (fromRoot === "" || fromRoot.startsWith("..") || isAbsolute(fromRoot)) {
+    return false;
+  }
+  await rm(path, { force: true });
+  return true;
 }

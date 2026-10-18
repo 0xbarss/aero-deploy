@@ -174,6 +174,16 @@ export async function findReleaseById(
   return row === undefined ? undefined : { ...toRelease(row), appName: row.app_name };
 }
 
+/** Deletes the row and returns it, so the caller knows which file to remove; undefined if there was none. */
+export async function deleteRelease(pool: Pool, id: number): Promise<ApkRelease | undefined> {
+  const result = await pool.query<ApkReleaseRow>(
+    "DELETE FROM apk_releases WHERE id = $1 RETURNING *",
+    [id],
+  );
+  const row = result.rows[0];
+  return row === undefined ? undefined : toRelease(row);
+}
+
 export async function findReleasesWithoutHash(pool: Pool): Promise<ApkRelease[]> {
   const result = await pool.query<ApkReleaseRow>(
     "SELECT * FROM apk_releases WHERE sha256 IS NULL ORDER BY id",

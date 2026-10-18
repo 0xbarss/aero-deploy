@@ -11,6 +11,8 @@ export interface AppOptions {
   pool: Pool;
   uploadDir: string;
   maxUploadBytes: number;
+  /** Admin routes are refused while this is undefined. */
+  adminToken?: string | undefined;
 }
 
 const MAX_TEXT_FIELD_BYTES = 64 * 1024;
@@ -31,7 +33,11 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   });
 
   app.get("/api/health", () => ({ success: true, data: { status: "ok" } }));
-  registerApkRoutes(app, { pool: options.pool, uploadDir: options.uploadDir });
+  registerApkRoutes(app, {
+    pool: options.pool,
+    uploadDir: options.uploadDir,
+    adminToken: options.adminToken,
+  });
   registerAppRoutes(app, { pool: options.pool });
 
   await app.ready();
