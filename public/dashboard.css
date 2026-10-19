@@ -354,6 +354,7 @@ dd {
   background: var(--selected);
 }
 
+.qr,
 .danger-zone,
 .confirm {
   margin-top: 1.25rem;
@@ -361,9 +362,24 @@ dd {
   border-top: 1px solid var(--rule);
 }
 
-.confirm h3 {
+.confirm h3,
+.qr h3 {
   margin: 0 0 0.5rem;
   font-size: 1rem;
+}
+
+.qr-code {
+  width: 11rem;
+  max-width: 100%;
+  margin-bottom: 0.5rem;
+  border: 1px solid var(--rule);
+  line-height: 0;
+}
+
+.qr-code svg {
+  display: block;
+  width: 100%;
+  height: auto;
 }
 
 .confirm p {

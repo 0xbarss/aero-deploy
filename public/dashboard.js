@@ -1,5 +1,6 @@
 import { h, replaceContent } from "./dom.js";
 import { probeDownload } from "./download.js";
+import { qrElement } from "./qr.js";
 import {
   apiErrorMessage,
   confirmationNote,
@@ -7,6 +8,7 @@ import {
   downloadFailure,
   filterableApps,
   formatFileSize,
+  isReachableFromPhone,
   latestReleaseIds,
   matchesVersionName,
   releasesQuery,
@@ -432,12 +434,55 @@ function deleteSection(release, panel) {
   return h("div", { class: "danger-zone" }, button);
 }
 
+function qrSection(release) {
+  const heading = h("h3", {}, "Open on a phone");
+  if (!isReachableFromPhone(release.downloadUrl)) {
+    return h(
+      "section",
+      { class: "qr" },
+      heading,
+      h(
+        "p",
+        { class: "note" },
+        "This page was opened through an address that only this computer can use, so a phone could not follow the link. Open the dashboard through the server's address on your network to get a QR code.",
+      ),
+    );
+  }
+  let code;
+  try {
+    code = qrElement(
+      release.downloadUrl,
+      `QR code for the ${release.appName} ${release.versionName} download link`,
+    );
+  } catch (error) {
+    if (!(error instanceof RangeError)) {
+      throw error;
+    }
+    return h(
+      "section",
+      { class: "qr" },
+      heading,
+      h(
+        "p",
+        { class: "note" },
+        "The link is too long to draw as a QR code. Use Copy link instead.",
+      ),
+    );
+  }
+  return h(
+    "section",
+    { class: "qr" },
+    heading,
+    h("div", { class: "qr-code" }, code),
+    h("p", { class: "note" }, "Scan with a phone on the same network to download this build."),
+  );
+}
+
 function renderDetails() {
   const panel = document.getElementById("details");
-  panel.replaceChildren();
   const release = state.releases.find((item) => item.id === state.selectedId);
   if (release === undefined) {
-    panel.append(h("p", { class: "note" }, "Select a release to see its details."));
+    replaceContent(panel, h("p", { class: "note" }, "Select a release to see its details."));
     return;
   }
   const link = h("input", {
@@ -447,7 +492,8 @@ function renderDetails() {
     "aria-label": "Download link",
     onfocus: (event) => event.target.select(),
   });
-  panel.append(
+  replaceContent(
+    panel,
     h(
       "h2",
       {},
@@ -477,6 +523,7 @@ function renderDetails() {
     state.downloadProblem?.releaseId === release.id
       ? h("p", { class: "error", role: "alert" }, state.downloadProblem.message)
       : null,
+    qrSection(release),
     deleteSection(release, panel),
   );
 }
