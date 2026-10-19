@@ -33,7 +33,11 @@ const MAX_TEXT_FIELD_BYTES = 64 * 1024;
 const MAX_TEXT_FIELDS = 10;
 
 export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
-  const app = Fastify({ logger: options.logger, frameworkErrors: handleFrameworkError });
+  const app = Fastify({
+    logger: options.logger,
+    frameworkErrors: handleFrameworkError,
+    trustProxy: true,
+  });
 
   registerErrorHandling(app);
   await mkdir(options.uploadDir, { recursive: true });

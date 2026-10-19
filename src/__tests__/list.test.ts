@@ -116,6 +116,39 @@ describe("GET /api/apks", () => {
     expect(response.body).not.toContain(testApp.uploadDir);
   });
 
+  it("uses https in downloadUrl when X-Forwarded-Proto says https", async () => {
+    const content = fakeApk(4096);
+    const { release } = await seedRelease(pool, testApp.uploadDir, {
+      versionCode: 1,
+      content,
+    });
+
+    const response = await list("", {
+      host: "abc123.ngrok.io",
+      "x-forwarded-proto": "https",
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json<ListBody>();
+    expect(body.data[0]?.downloadUrl).toBe(
+      `https://abc123.ngrok.io/api/apks/download/${release.id}`,
+    );
+  });
+
+  it("uses the X-Forwarded-Host header when present", async () => {
+    await seedRelease(pool, testApp.uploadDir, { versionCode: 1 });
+
+    const response = await list("", {
+      host: "localhost:3000",
+      "x-forwarded-host": "abc123.ngrok.io",
+      "x-forwarded-proto": "https",
+    });
+
+    expect(response.statusCode).toBe(200);
+    const body = response.json<ListBody>();
+    expect(body.data[0]?.downloadUrl).toContain("abc123.ngrok.io");
+  });
+
   it("lists releases newest versionCode first", async () => {
     await seedCodes(2, 9, 5);
 
