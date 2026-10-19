@@ -53,7 +53,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     adminToken: options.adminToken,
     uploadToken: options.uploadToken,
   });
-  registerAppRoutes(app, { pool: options.pool });
+  registerAppRoutes(app, { pool: options.pool, adminToken: options.adminToken });
   await app.register(fastifyStatic, {
     root: PUBLIC_DIR,
     wildcard: false,

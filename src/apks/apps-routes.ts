@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import type { Pool } from "pg";
+import { assertAdmin } from "../admin-auth.js";
 import { NotFoundError } from "../errors.js";
 import { parseRenameBody } from "./app-name-field.js";
 import { listAppsWithLatestRelease, renameApp } from "./apps-repository.js";
@@ -7,10 +8,11 @@ import { parseReleaseId } from "./release-id.js";
 
 export interface AppRoutesOptions {
   pool: Pool;
+  adminToken?: string | undefined;
 }
 
 export function registerAppRoutes(app: FastifyInstance, options: AppRoutesOptions): void {
-  const { pool } = options;
+  const { pool, adminToken } = options;
 
   app.get("/api/apps", async () => {
     const apps = await listAppsWithLatestRelease(pool);
@@ -30,6 +32,7 @@ export function registerAppRoutes(app: FastifyInstance, options: AppRoutesOption
   });
 
   app.patch<{ Params: { id: string } }>("/api/apps/:id", async (request) => {
+    assertAdmin(request, adminToken);
     const id = parseReleaseId(request.params.id);
     const name = parseRenameBody(request.body);
     const renamed = await renameApp(pool, id, name);
