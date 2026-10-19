@@ -26,9 +26,11 @@ export default tseslint.config(
       globals: {
         document: "readonly",
         fetch: "readonly",
+        FormData: "readonly",
         navigator: "readonly",
         setTimeout: "readonly",
         window: "readonly",
+        XMLHttpRequest: "readonly",
       },
     },
   },
