@@ -3,20 +3,18 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AeroDeploy</title>
-    <link rel="stylesheet" href="/dashboard.css" />
-    <script type="module" src="/dashboard.js"></script>
+    <meta name="color-scheme" content="dark" />
+    <meta
+      name="description"
+      content="AeroDeploy serves APK releases over the local network. Upload once, then install on any phone on the same Wi-Fi."
+    />
+    <title>AeroDeploy | Local release distribution</title>
+    <link rel="stylesheet" href="/fonts/fonts.css" />
+    <link rel="icon" href="/mark.svg" type="image/svg+xml" />
+    <script type="module" crossorigin src="/assets/index-CDgIJu-H.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-B-XRSpSX.css">
   </head>
   <body>
-    <header class="top">
-      <h1>AeroDeploy</h1>
-      <p>Releases on this server</p>
-    </header>
-    <section id="upload" class="upload" aria-label="Upload a release"></section>
-    <main id="app" aria-busy="true">
-      <p class="note">Loading releases…</p>
-      <noscript><p class="note">The release list needs JavaScript.</p></noscript>
-    </main>
-    <div id="announce" class="sr-only" role="status" aria-live="polite"></div>
+    <div id="root"></div>
   </body>
 </html>
