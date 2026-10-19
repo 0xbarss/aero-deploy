@@ -54,6 +54,17 @@ export function apiErrorMessage(status, body) {
   return `The server answered HTTP ${status}.`;
 }
 
+/** The code of the server's error envelope, or null when the body has none. */
+function apiErrorCode(body) {
+  if (typeof body === "object" && body !== null && "error" in body) {
+    const { error } = body;
+    if (typeof error === "object" && error !== null && "code" in error) {
+      return typeof error.code === "string" ? error.code : null;
+    }
+  }
+  return null;
+}
+
 /**
  * Apps worth offering in the filter: those with at least one release, sorted by name.
  * @template {{ name: string, latestRelease: unknown }} T
@@ -125,6 +136,28 @@ export function confirmationNote(appName, isLatest, successor) {
  */
 export function deleteFailureMessage(status, body) {
   return status === 404 ? "This release was already removed." : apiErrorMessage(status, body);
+}
+
+/**
+ * What to tell the user when the check before a download fails, and whether the release itself
+ * is gone (so the list is out of date).
+ * @param {number} status
+ * @param {unknown} body
+ * @returns {{ message: string, releaseRemoved: boolean }}
+ */
+export function downloadFailure(status, body) {
+  const code = apiErrorCode(body);
+  if (status === 404 && code === "apk_file_missing") {
+    return {
+      message:
+        "The file for this release is no longer on the server. Delete the release, then upload the build again.",
+      releaseRemoved: false,
+    };
+  }
+  if (status === 404 && code === "release_not_found") {
+    return { message: "This release was already removed.", releaseRemoved: true };
+  }
+  return { message: apiErrorMessage(status, body), releaseRemoved: false };
 }
 
 /** Whether a file name looks like an APK; the server still checks the content. */

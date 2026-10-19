@@ -1,8 +1,10 @@
 import { h, replaceContent } from "./dom.js";
+import { probeDownload } from "./download.js";
 import {
   apiErrorMessage,
   confirmationNote,
   deleteFailureMessage,
+  downloadFailure,
   filterableApps,
   formatFileSize,
   latestReleaseIds,
@@ -27,6 +29,8 @@ const state = {
   // Kept in memory only, so it is asked for again after a reload
   adminToken: null,
   confirm: null,
+  // The reason the last Download click on a release did not start a download
+  downloadProblem: null,
   notice: null,
   releases: [],
   total: 0,
@@ -97,17 +101,66 @@ function copyButton(release, extraClass = "") {
   return button;
 }
 
+async function startDownload(event, release, link) {
+  event.stopPropagation();
+  const modified = event.ctrlKey || event.metaKey || event.shiftKey || event.altKey;
+  if (event.button !== 0 || modified) {
+    return;
+  }
+  // The link keeps its address for "save link as", but a plain click is checked first, so a
+  // missing file gives a message instead of a saved error page
+  event.preventDefault();
+  if (link.getAttribute("aria-disabled") === "true") {
+    return;
+  }
+  link.setAttribute("aria-disabled", "true");
+  link.textContent = "Checking…";
+  let failure = null;
+  try {
+    const result = await probeDownload(release.downloadUrl);
+    if (!result.ok) {
+      failure = downloadFailure(result.status, result.body);
+    }
+  } catch (error) {
+    failure = {
+      message: error instanceof Error ? error.message : "Unknown error.",
+      releaseRemoved: false,
+    };
+  }
+  link.removeAttribute("aria-disabled");
+  link.textContent = "Download";
+  if (failure === null) {
+    if (state.downloadProblem !== null) {
+      state.downloadProblem = null;
+      renderDetails();
+    }
+    window.location.assign(release.downloadUrl);
+    return;
+  }
+  if (failure.releaseRemoved) {
+    const message = `${release.appName} ${release.versionName} was already removed.`;
+    announce(message);
+    await loadFirstPage(message);
+    return;
+  }
+  state.downloadProblem = { releaseId: release.id, message: failure.message };
+  select(release.id);
+  // The panel scrolls inside itself on wide screens, so the message may start below the fold
+  document.querySelector("#details .error")?.scrollIntoView({ block: "nearest" });
+}
+
 function downloadLink(release) {
-  return h(
+  const link = h(
     "a",
     {
       class: "button",
       href: release.downloadUrl,
       download: true,
-      onclick: (event) => event.stopPropagation(),
+      onclick: (event) => void startDownload(event, release, link),
     },
     "Download",
   );
+  return link;
 }
 
 function badge() {
@@ -117,6 +170,9 @@ function badge() {
 function select(id) {
   state.selectedId = id;
   state.confirm = null;
+  if (state.downloadProblem !== null && state.downloadProblem.releaseId !== id) {
+    state.downloadProblem = null;
+  }
   for (const row of root.querySelectorAll("tr[data-id]")) {
     const selected = Number(row.dataset.id) === id;
     row.classList.toggle("selected", selected);
@@ -418,6 +474,9 @@ function renderDetails() {
     ),
     h("div", { class: "link-field" }, link),
     h("div", { class: "detail-actions" }, downloadLink(release), copyButton(release)),
+    state.downloadProblem?.releaseId === release.id
+      ? h("p", { class: "error", role: "alert" }, state.downloadProblem.message)
+      : null,
     deleteSection(release, panel),
   );
 }
@@ -516,6 +575,7 @@ async function loadFirstPage(notice = null) {
     state.total = page.pagination.total;
     state.selectedId = null;
     state.confirm = null;
+    state.downloadProblem = null;
     state.notice = notice;
     state.loadMoreError = null;
     renderList();
