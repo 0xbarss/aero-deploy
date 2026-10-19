@@ -195,3 +195,25 @@ export function parseJsonBody(text) {
     return null;
   }
 }
+
+/**
+ * Whether a phone could follow `url`. False for loopback addresses, which a phone would resolve
+ * to itself, and for text that is not an absolute URL.
+ * @param {string} url
+ * @returns {boolean}
+ */
+export function isReachableFromPhone(url) {
+  let hostname;
+  try {
+    hostname = new URL(url).hostname.toLowerCase().replace(/\.$/, "");
+  } catch {
+    return false;
+  }
+  if (hostname === "" || hostname === "localhost" || hostname.endsWith(".localhost")) {
+    return false;
+  }
+  if (hostname === "0.0.0.0" || hostname === "[::1]" || hostname === "[::]") {
+    return false;
+  }
+  return !/^127\.\d+\.\d+\.\d+$/.test(hostname);
+}
