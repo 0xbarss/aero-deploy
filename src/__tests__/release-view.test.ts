@@ -9,11 +9,13 @@ import {
   formatFileSize,
   isApkFileName,
   isReachableFromPhone,
+  isRenameChange,
   latestReleaseIds,
   matchesVersionName,
   parseJsonBody,
   progressLabel,
   releasesQuery,
+  renameSuccessMessage,
   shortHash,
   successorOf,
   uploadSummary,
@@ -330,4 +332,29 @@ describe("isReachableFromPhone", () => {
       expect(isReachableFromPhone(url)).toBe(false);
     },
   );
+});
+
+describe("isRenameChange", () => {
+  it("accepts a different name", () => {
+    expect(isRenameChange("Corner Shop", "My Shop")).toBe(true);
+  });
+
+  it("rejects the current name, with or without surrounding spaces", () => {
+    expect(isRenameChange("My Shop", "My Shop")).toBe(false);
+    expect(isRenameChange("  My Shop \t", "My Shop")).toBe(false);
+  });
+
+  it("accepts a change of letter case only, which the server allows for the same app", () => {
+    expect(isRenameChange("my shop", "My Shop")).toBe(true);
+  });
+
+  it.each(["", "   ", "\t\n"])("rejects the blank name %j", (typed) => {
+    expect(isRenameChange(typed, "My Shop")).toBe(false);
+  });
+});
+
+describe("renameSuccessMessage", () => {
+  it("names the old and the new name", () => {
+    expect(renameSuccessMessage("My Shop", "Corner Shop")).toBe("Renamed My Shop to Corner Shop.");
+  });
 });

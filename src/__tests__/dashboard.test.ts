@@ -234,4 +234,23 @@ describe("dashboard hosting", () => {
     expect(body).toContain("replaceContent(panel");
     expect(body).not.toMatch(/panel\.append\(/);
   });
+
+  it("renames an app with a PATCH request that carries the admin token as a bearer header", async () => {
+    const source = await readFile(join(PUBLIC_DIR, "dashboard.js"), "utf8");
+    const start = source.indexOf("async function sendRename(");
+
+    expect(start).toBeGreaterThan(-1);
+    const body = source.slice(start, source.indexOf("\nfunction ", start + 1));
+    expect(body).toMatch(/method: "PATCH"/);
+    expect(body).toMatch(/\/api\/apps\/\$\{appId\}/);
+    expect(body).toMatch(/Authorization: `Bearer \$\{token\}`/);
+  });
+
+  it("offers the rename in the details panel", async () => {
+    const source = await readFile(join(PUBLIC_DIR, "dashboard.js"), "utf8");
+    const start = source.indexOf("function renderDetails()");
+    const body = source.slice(start, source.indexOf("\nfunction ", start + 1));
+
+    expect(body).toMatch(/renameSection\(/);
+  });
 });
