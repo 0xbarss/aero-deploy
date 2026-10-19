@@ -10,7 +10,7 @@ try {
 
 export default defineConfig({
   test: {
-    include: ["src/**/__tests__/**/*.test.ts"],
+    include: ["src/**/__tests__/**/*.test.ts", "web/src/**/__tests__/**/*.test.ts"],
     // All database tests share one database, so test files must not run at the same time
     fileParallelism: false,
   },
