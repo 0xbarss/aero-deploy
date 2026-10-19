@@ -20,5 +20,17 @@ export default tseslint.config(
     },
   },
   { files: ["**/*.js"], extends: [tseslint.configs.disableTypeChecked] },
+  {
+    files: ["public/**/*.js"],
+    languageOptions: {
+      globals: {
+        document: "readonly",
+        fetch: "readonly",
+        navigator: "readonly",
+        setTimeout: "readonly",
+        window: "readonly",
+      },
+    },
+  },
   prettier,
 );
