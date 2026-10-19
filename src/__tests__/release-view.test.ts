@@ -2,9 +2,15 @@ import { describe, expect, it } from "vitest";
 import { formatFileSize as formatServerFileSize } from "../format-file-size.js";
 import {
   apiErrorMessage,
+  confirmationNote,
+  deleteFailureMessage,
+  filterableApps,
   formatFileSize,
   latestReleaseIds,
+  matchesVersionName,
+  releasesQuery,
   shortHash,
+  successorOf,
 } from "../../public/release-view.js";
 
 describe("formatFileSize", () => {
@@ -76,5 +82,112 @@ describe("apiErrorMessage", () => {
     ["an empty message", { success: false, error: { message: "" } }],
   ])("falls back to the status for %s", (_name, body) => {
     expect(apiErrorMessage(502, body)).toBe("The server answered HTTP 502.");
+  });
+});
+
+describe("filterableApps", () => {
+  it("keeps apps that have a release and sorts them by name", () => {
+    const apps = [
+      { id: 3, name: "Zebra", latestRelease: { id: 9 } },
+      { id: 1, name: "Default App", latestRelease: null },
+      { id: 2, name: "apple", latestRelease: { id: 4 } },
+    ];
+
+    expect(filterableApps(apps).map((app) => app.id)).toEqual([2, 3]);
+  });
+
+  it("returns an empty list when no app has a release", () => {
+    expect(filterableApps([{ id: 1, name: "A", latestRelease: null }])).toEqual([]);
+  });
+});
+
+describe("releasesQuery", () => {
+  it("asks for one page of all apps", () => {
+    expect(releasesQuery(null, 50, 0)).toBe("limit=50&offset=0");
+  });
+
+  it("adds the app filter", () => {
+    expect(releasesQuery(7, 50, 100)).toBe("limit=50&offset=100&appId=7");
+  });
+});
+
+describe("successorOf", () => {
+  const releases = [
+    { id: 10, versionCode: 12 },
+    { id: 11, versionCode: 14 },
+    { id: 12, versionCode: 13 },
+  ];
+
+  it("picks the highest version code among the other releases", () => {
+    expect(successorOf(11, releases)).toEqual({ id: 12, versionCode: 13 });
+  });
+
+  it("ignores the release itself even when it is not the highest", () => {
+    expect(successorOf(10, releases)).toEqual({ id: 11, versionCode: 14 });
+  });
+
+  it("returns null when nothing else is left", () => {
+    expect(successorOf(10, [{ id: 10, versionCode: 12 }])).toBeNull();
+    expect(successorOf(10, [])).toBeNull();
+  });
+});
+
+describe("matchesVersionName", () => {
+  it("accepts the exact version name, ignoring surrounding spaces", () => {
+    expect(matchesVersionName("1.2.0-debug", "1.2.0-debug")).toBe(true);
+    expect(matchesVersionName("  1.2.0-debug ", "1.2.0-debug")).toBe(true);
+  });
+
+  it.each(["", "1.2.0", "1.2.0-DEBUG", "1.2.0-debug extra"])("rejects %j", (typed) => {
+    expect(matchesVersionName(typed, "1.2.0-debug")).toBe(false);
+  });
+
+  it("never matches an empty version name", () => {
+    expect(matchesVersionName("", "")).toBe(false);
+  });
+});
+
+describe("confirmationNote", () => {
+  const release = { versionName: "1.0.60", versionCode: 60 };
+
+  it("names the release that becomes the latest", () => {
+    const next = { versionName: "1.0.59", versionCode: 59 };
+
+    expect(confirmationNote("My Shop", true, next)).toBe(
+      "1.0.59 (59) will become the latest release of My Shop.",
+    );
+  });
+
+  it("warns when the app is left without releases", () => {
+    expect(confirmationNote("My Shop", true, null)).toBe("My Shop will have no releases left.");
+  });
+
+  it("says nothing about the latest release when another release is the latest", () => {
+    expect(confirmationNote("My Shop", false, null)).toBeNull();
+    expect(release.versionName).toBe("1.0.60");
+  });
+});
+
+describe("deleteFailureMessage", () => {
+  it("says the release is already gone on 404", () => {
+    const body = {
+      success: false,
+      error: { code: "release_not_found", message: "Release 4 not found" },
+    };
+
+    expect(deleteFailureMessage(404, body)).toBe("This release was already removed.");
+  });
+
+  it("uses the server's message for other statuses", () => {
+    const body = {
+      success: false,
+      error: { code: "unauthorized", message: "A valid admin token is required" },
+    };
+
+    expect(deleteFailureMessage(401, body)).toBe("A valid admin token is required");
+  });
+
+  it("falls back to the status when there is no message", () => {
+    expect(deleteFailureMessage(500, null)).toBe("The server answered HTTP 500.");
   });
 });

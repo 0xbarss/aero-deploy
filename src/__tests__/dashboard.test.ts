@@ -151,4 +151,21 @@ describe("dashboard hosting", () => {
     expect(page.body).not.toContain("upload-secret-1");
     expect(script.body).not.toContain("secret");
   });
+
+  it.each(["dashboard.js", "release-view.js"])(
+    "%s never builds markup from strings or evaluates code",
+    async (file) => {
+      const source = await readFile(join(PUBLIC_DIR, file), "utf8");
+
+      expect(source).not.toMatch(
+        /innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function\(/,
+      );
+    },
+  );
+
+  it("keeps the admin token out of browser storage", async () => {
+    const source = await readFile(join(PUBLIC_DIR, "dashboard.js"), "utf8");
+
+    expect(source).not.toMatch(/localStorage|sessionStorage|document\.cookie|indexedDB/);
+  });
 });
