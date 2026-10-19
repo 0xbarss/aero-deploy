@@ -13,6 +13,8 @@ import {
   resetDatabase,
 } from "./helpers/test-database.js";
 
+const TOKEN = "test-admin-token-7f3a91";
+
 let pool: Pool;
 let testApp: TestApp;
 
@@ -28,7 +30,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await clearReleasesAndExtraApps(pool);
-  testApp = await createTestApp(pool);
+  testApp = await createTestApp(pool, { adminToken: TOKEN });
 });
 
 afterEach(async () => {
@@ -98,7 +100,7 @@ describe("GET /api/apks/download/:id", () => {
       method: "PATCH",
       url: `/api/apps/${appId}`,
       payload: JSON.stringify({ name: "Dükkan" }),
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", authorization: `Bearer ${TOKEN}` },
     });
     expect(renamed.statusCode).toBe(200);
 

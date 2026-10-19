@@ -1,6 +1,8 @@
 import type { Pool } from "pg";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { buildApp } from "../app.js";
 import { migrateUp } from "../db/migrate.js";
+import { captureLogs } from "./helpers/log-capture.js";
 import { defaultAppId, seedApp, seedRelease, sha256Hex } from "./helpers/seed-release.js";
 import { createTestApp, type TestApp } from "./helpers/test-app.js";
 import {
@@ -8,6 +10,8 @@ import {
   createTestPool,
   resetDatabase,
 } from "./helpers/test-database.js";
+
+const TOKEN = "test-admin-token-7f3a91";
 
 let pool: Pool;
 let testApp: TestApp;
@@ -24,7 +28,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await clearReleasesAndExtraApps(pool);
-  testApp = await createTestApp(pool);
+  testApp = await createTestApp(pool, { adminToken: TOKEN });
 });
 
 afterEach(async () => {
@@ -50,12 +54,19 @@ function listApps() {
   return testApp.app.inject({ method: "GET", url: "/api/apps" });
 }
 
-function rename(id: number | string, payload: unknown) {
+function rename(
+  id: number | string,
+  payload: unknown,
+  authorization: string | null = `Bearer ${TOKEN}`,
+) {
   return testApp.app.inject({
     method: "PATCH",
     url: `/api/apps/${id}`,
     payload: JSON.stringify(payload),
-    headers: { "content-type": "application/json" },
+    headers: {
+      "content-type": "application/json",
+      ...(authorization === null ? {} : { authorization }),
+    },
   });
 }
 
@@ -239,7 +250,11 @@ describe("PATCH /api/apps/:id", () => {
   });
 
   it("rejects a request without a body with 400", async () => {
-    const response = await testApp.app.inject({ method: "PATCH", url: `/api/apps/${shopId}` });
+    const response = await testApp.app.inject({
+      method: "PATCH",
+      url: `/api/apps/${shopId}`,
+      headers: { authorization: `Bearer ${TOKEN}` },
+    });
 
     expect(response.statusCode).toBe(400);
     expect(await appName(shopId)).toBe("My Shop");
@@ -260,5 +275,123 @@ describe("PATCH /api/apps/:id", () => {
       [shopId],
     );
     expect(Number(releases.rows[0]?.count)).toBe(1);
+  });
+});
+
+describe("PATCH /api/apps/:id authorization", () => {
+  let shopId: number;
+
+  beforeEach(async () => {
+    shopId = await seedApp(pool, { name: "My Shop", packageName: "com.example.shop" });
+  });
+
+  async function expectRejected(
+    response: Awaited<ReturnType<typeof rename>>,
+    status: number,
+    code: string,
+  ) {
+    expect(response.statusCode).toBe(status);
+    expect(response.json()).toMatchObject({ success: false, error: { code } });
+    expect(await appName(shopId)).toBe("My Shop");
+  }
+
+  it("rejects a request without an Authorization header with 401 unauthorized", async () => {
+    await expectRejected(await rename(shopId, { name: "Corner Shop" }, null), 401, "unauthorized");
+  });
+
+  it.each([
+    ["a wrong token", "Bearer wrong-token"],
+    ["a token that is only a prefix of the real one", `Bearer ${TOKEN.slice(0, -1)}`],
+    ["the real token plus extra characters", `Bearer ${TOKEN}x`],
+    ["an empty token", "Bearer "],
+    ["the token without a scheme", TOKEN],
+    ["another scheme", `Basic ${TOKEN}`],
+  ])("rejects %s with 401 unauthorized", async (_label, header) => {
+    await expectRejected(
+      await rename(shopId, { name: "Corner Shop" }, header),
+      401,
+      "unauthorized",
+    );
+  });
+
+  it("accepts the scheme in any letter case", async () => {
+    const response = await rename(shopId, { name: "Corner Shop" }, `bearer ${TOKEN}`);
+
+    expect(response.statusCode).toBe(200);
+    expect(await appName(shopId)).toBe("Corner Shop");
+  });
+
+  it("checks the token before the id and the body, so a caller without it learns nothing", async () => {
+    const unknownApp = await rename(shopId + 1000, { name: "Anything" }, null);
+    const malformedId = await rename("abc", { name: "Anything" }, null);
+    const invalidBody = await rename(shopId, { name: "" }, null);
+    const takenName = await rename(shopId, { name: "My Shop" }, null);
+
+    expect(unknownApp.statusCode).toBe(401);
+    expect(malformedId.statusCode).toBe(401);
+    expect(invalidBody.statusCode).toBe(401);
+    expect(takenName.statusCode).toBe(401);
+  });
+
+  it("does not accept the upload token", async () => {
+    await testApp.close();
+    testApp = await createTestApp(pool, { adminToken: TOKEN, uploadToken: "upload-token-52d1" });
+
+    await expectRejected(
+      await rename(shopId, { name: "Corner Shop" }, "Bearer upload-token-52d1"),
+      401,
+      "unauthorized",
+    );
+  });
+
+  it("answers 403 admin_disabled when the server has no ADMIN_TOKEN, whatever the request carries", async () => {
+    await testApp.close();
+    testApp = await createTestApp(pool);
+
+    await expectRejected(
+      await rename(shopId, { name: "Corner Shop" }, "Bearer anything"),
+      403,
+      "admin_disabled",
+    );
+    expect((await rename(shopId, { name: "Corner Shop" }, null)).statusCode).toBe(403);
+  });
+
+  it("still lets anyone list the apps", async () => {
+    await testApp.close();
+    testApp = await createTestApp(pool);
+
+    expect((await listApps()).statusCode).toBe(200);
+  });
+
+  it("does not write the submitted or the configured token to the logs", async () => {
+    const logs = captureLogs();
+    await testApp.app.close();
+    const app = await buildApp({
+      logger: { level: "debug", stream: logs.stream },
+      pool,
+      uploadDir: testApp.uploadDir,
+      maxUploadBytes: 64 * 1024,
+      adminToken: TOKEN,
+    });
+    const send = (authorization: string) =>
+      app.inject({
+        method: "PATCH",
+        url: `/api/apps/${shopId}`,
+        payload: JSON.stringify({ name: "Corner Shop" }),
+        headers: { "content-type": "application/json", authorization },
+      });
+
+    await send("Bearer submitted-secret-91c2");
+    await send(`Bearer ${TOKEN}`);
+    await app.close();
+
+    const output = JSON.stringify(logs.entries());
+    expect(output).not.toContain("submitted-secret-91c2");
+    expect(output).not.toContain(TOKEN);
+    expect(
+      logs
+        .entries()
+        .some((entry) => entry.event === "request.rejected" && entry.statusCode === 401),
+    ).toBe(true);
   });
 });
