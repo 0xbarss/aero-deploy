@@ -53,3 +53,76 @@ export function apiErrorMessage(status, body) {
   }
   return `The server answered HTTP ${status}.`;
 }
+
+/**
+ * Apps worth offering in the filter: those with at least one release, sorted by name.
+ * @template {{ name: string, latestRelease: unknown }} T
+ * @param {ReadonlyArray<T>} apps
+ * @returns {T[]}
+ */
+export function filterableApps(apps) {
+  return apps
+    .filter((app) => app.latestRelease !== null)
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }));
+}
+
+/**
+ * Query string for GET /api/apks.
+ * @param {number | null} appId
+ * @param {number} limit
+ * @param {number} offset
+ */
+export function releasesQuery(appId, limit, offset) {
+  const query = `limit=${limit}&offset=${offset}`;
+  return appId === null ? query : `${query}&appId=${appId}`;
+}
+
+/**
+ * The release that becomes the latest once `releaseId` is gone: the highest version code among
+ * the others, or null when there is none.
+ * @template {{ id: number, versionCode: number }} T
+ * @param {number} releaseId
+ * @param {ReadonlyArray<T>} releases
+ * @returns {T | null}
+ */
+export function successorOf(releaseId, releases) {
+  let best = null;
+  for (const release of releases) {
+    if (release.id !== releaseId && (best === null || release.versionCode > best.versionCode)) {
+      best = release;
+    }
+  }
+  return best;
+}
+
+/** Whether the text typed to confirm a delete is the release's version name. */
+export function matchesVersionName(typed, versionName) {
+  return versionName !== "" && typed.trim() === versionName;
+}
+
+/**
+ * What the delete confirmation says about the latest release, or null when the release being
+ * deleted is not the latest.
+ * @param {string} appName
+ * @param {boolean} isLatest
+ * @param {{ versionName: string, versionCode: number } | null} successor
+ * @returns {string | null}
+ */
+export function confirmationNote(appName, isLatest, successor) {
+  if (!isLatest) {
+    return null;
+  }
+  if (successor === null) {
+    return `${appName} will have no releases left.`;
+  }
+  return `${successor.versionName} (${successor.versionCode}) will become the latest release of ${appName}.`;
+}
+
+/**
+ * @param {number} status
+ * @param {unknown} body
+ * @returns {string}
+ */
+export function deleteFailureMessage(status, body) {
+  return status === 404 ? "This release was already removed." : apiErrorMessage(status, body);
+}
