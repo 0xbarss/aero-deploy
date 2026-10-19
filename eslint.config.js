@@ -3,7 +3,7 @@ import prettier from "eslint-config-prettier";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["dist", "coverage", "node_modules", "public/vendor"] },
+  { ignores: ["dist", "coverage", "node_modules", "public", "web/public", "web/src/vendor"] },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
@@ -19,9 +19,27 @@ export default tseslint.config(
       "no-console": "error",
     },
   },
-  { files: ["**/*.js"], extends: [tseslint.configs.disableTypeChecked] },
   {
-    files: ["public/**/*.js"],
+    files: ["**/*.js", "**/*.mjs"],
+    extends: [tseslint.configs.disableTypeChecked],
+  },
+  {
+    files: ["scripts/**/*.mjs", "scripts/seed-dev.ts"],
+    languageOptions: {
+      globals: {
+        Buffer: "readonly",
+        console: "readonly",
+        fetch: "readonly",
+        process: "readonly",
+      },
+    },
+    rules: {
+      // The scripts report what they did, which is the point of running them.
+      "no-console": "off",
+    },
+  },
+  {
+    files: ["web/**/*.{ts,tsx}"],
     languageOptions: {
       globals: {
         document: "readonly",
@@ -32,6 +50,7 @@ export default tseslint.config(
         URL: "readonly",
         window: "readonly",
         XMLHttpRequest: "readonly",
+        Intl: "readonly",
       },
     },
   },

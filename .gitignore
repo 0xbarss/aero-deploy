@@ -143,6 +143,9 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
 
+# The dashboard is built from web/ into public/, which is served as static files
+/public/
+
 # Astro generated types
 .astro/
 

@@ -3,4 +3,6 @@ coverage
 node_modules
 package-lock.json
 LICENSE
-public/vendor
+public
+web/public
+web/src/vendor
