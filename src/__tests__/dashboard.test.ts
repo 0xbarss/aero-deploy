@@ -53,6 +53,8 @@ describe("dashboard hosting", () => {
     ["/upload.js", /javascript/],
     ["/dom.js", /javascript/],
     ["/download.js", /javascript/],
+    ["/qr.js", /javascript/],
+    ["/vendor/uqr.js", /javascript/],
     ["/dashboard.css", /^text\/css/],
   ])("serves %s with the right content type", async (url, contentType) => {
     const app = await createApp();
@@ -155,7 +157,7 @@ describe("dashboard hosting", () => {
     expect(script.body).not.toContain("secret");
   });
 
-  it.each(["dashboard.js", "release-view.js", "upload.js", "dom.js", "download.js"])(
+  it.each(["dashboard.js", "release-view.js", "upload.js", "dom.js", "download.js", "qr.js"])(
     "%s never builds markup from strings or evaluates code",
     async (file) => {
       const source = await readFile(join(PUBLIC_DIR, file), "utf8");
@@ -193,5 +195,43 @@ describe("dashboard hosting", () => {
     const source = await readFile(join(PUBLIC_DIR, "dashboard.js"), "utf8");
 
     expect(source).not.toMatch(/root\.replaceChildren\(/);
+  });
+
+  it("keeps the licence of the vendored QR generator next to it", async () => {
+    const licence = await readFile(join(PUBLIC_DIR, "vendor", "uqr.LICENSE.txt"), "utf8");
+    const source = await readFile(join(PUBLIC_DIR, "vendor", "uqr.js"), "utf8");
+
+    expect(licence).toContain("MIT License");
+    expect(licence).toContain("Project Nayuki");
+    expect(source).toMatch(/^\/\/ uqr 0\.1\.3 \(MIT\)/);
+  });
+
+  it("draws the QR code as inline SVG, so the content security policy needs no image source", async () => {
+    const app = await createApp();
+    const page = await app.inject({ method: "GET", url: "/" });
+    const policy = String(page.headers["content-security-policy"]);
+    const source = await readFile(join(PUBLIC_DIR, "qr.js"), "utf8");
+
+    expect(policy).not.toMatch(/img-src|data:|blob:/);
+    expect(source).toContain("createElementNS");
+    expect(source).not.toMatch(/data:image|toDataURL|new Blob|createObjectURL/);
+  });
+
+  it("shows the QR code in the details panel", async () => {
+    const source = await readFile(join(PUBLIC_DIR, "dashboard.js"), "utf8");
+
+    expect(source).toMatch(/from "\.\/qr\.js"/);
+    expect(source).toMatch(/isReachableFromPhone\(/);
+  });
+
+  it("builds the details panel through a helper that skips missing children", async () => {
+    // append(null) would print the word "null" into the panel
+    const source = await readFile(join(PUBLIC_DIR, "dashboard.js"), "utf8");
+    const start = source.indexOf("function renderDetails()");
+    const body = source.slice(start, source.indexOf("\nfunction ", start + 1));
+
+    expect(start).toBeGreaterThan(-1);
+    expect(body).toContain("replaceContent(panel");
+    expect(body).not.toMatch(/panel\.append\(/);
   });
 });

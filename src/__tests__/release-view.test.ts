@@ -8,6 +8,7 @@ import {
   filterableApps,
   formatFileSize,
   isApkFileName,
+  isReachableFromPhone,
   latestReleaseIds,
   matchesVersionName,
   parseJsonBody,
@@ -295,4 +296,38 @@ describe("downloadFailure", () => {
       releaseRemoved: false,
     });
   });
+});
+
+describe("isReachableFromPhone", () => {
+  it.each([
+    "http://192.168.1.20:3000/api/apks/download/3",
+    "http://10.0.0.5/api/apks/download/3",
+    "http://172.16.4.9:3000/api/apks/download/3",
+    "http://aerodeploy.local:3000/api/apks/download/3",
+    "http://deploy-box:3000/api/apks/download/3",
+    "https://deploy.example.com/api/apks/download/3",
+    "http://[fd00::20]:3000/api/apks/download/3",
+  ])("accepts %s", (url) => {
+    expect(isReachableFromPhone(url)).toBe(true);
+  });
+
+  it.each([
+    "http://localhost:3000/api/apks/download/3",
+    "http://LOCALHOST:3000/api/apks/download/3",
+    "http://app.localhost:3000/api/apks/download/3",
+    "http://127.0.0.1:3000/api/apks/download/3",
+    "http://127.1.2.3:3000/api/apks/download/3",
+    "http://0.0.0.0:3000/api/apks/download/3",
+    "http://[::1]:3000/api/apks/download/3",
+    "http://localhost.:3000/api/apks/download/3",
+  ])("rejects %s, which a phone would resolve to itself", (url) => {
+    expect(isReachableFromPhone(url)).toBe(false);
+  });
+
+  it.each(["", "not a url", "/api/apks/download/3"])(
+    "rejects %j, which is not an absolute URL",
+    (url) => {
+      expect(isReachableFromPhone(url)).toBe(false);
+    },
+  );
 });
