@@ -6,11 +6,15 @@ import {
   deleteFailureMessage,
   filterableApps,
   formatFileSize,
+  isApkFileName,
   latestReleaseIds,
   matchesVersionName,
+  parseJsonBody,
+  progressLabel,
   releasesQuery,
   shortHash,
   successorOf,
+  uploadSummary,
 } from "../../public/release-view.js";
 
 describe("formatFileSize", () => {
@@ -189,5 +193,49 @@ describe("deleteFailureMessage", () => {
 
   it("falls back to the status when there is no message", () => {
     expect(deleteFailureMessage(500, null)).toBe("The server answered HTTP 500.");
+  });
+});
+
+describe("isApkFileName", () => {
+  it.each(["app.apk", "APP.APK", "my app v2.apk", "  app.apk "])("accepts %j", (name) => {
+    expect(isApkFileName(name)).toBe(true);
+  });
+
+  it.each(["", ".apk", "app", "app.apk.txt", "app.apks", "notes.txt"])("rejects %j", (name) => {
+    expect(isApkFileName(name)).toBe(false);
+  });
+});
+
+describe("uploadSummary", () => {
+  it("names what the server detected in the APK", () => {
+    const data = { appName: "My Shop", versionName: "1.2.0", versionCode: 12, fileSize: "24.5 MB" };
+
+    expect(uploadSummary(data)).toBe("Uploaded My Shop 1.2.0 (12), 24.5 MB.");
+  });
+});
+
+describe("progressLabel", () => {
+  it("shows the whole percent sent so far", () => {
+    expect(progressLabel(0, 100)).toBe("Uploading… 0%");
+    expect(progressLabel(439, 1000)).toBe("Uploading… 43%");
+  });
+
+  it("switches to processing once everything is sent", () => {
+    expect(progressLabel(100, 100)).toBe("Processing on the server…");
+    expect(progressLabel(250, 100)).toBe("Processing on the server…");
+  });
+
+  it("shows no percent when the total is unknown", () => {
+    expect(progressLabel(5, 0)).toBe("Uploading…");
+  });
+});
+
+describe("parseJsonBody", () => {
+  it("parses JSON text", () => {
+    expect(parseJsonBody('{"success":false}')).toEqual({ success: false });
+  });
+
+  it.each(["", "<h1>Bad Gateway</h1>", "{broken"])("returns null for %j", (text) => {
+    expect(parseJsonBody(text)).toBeNull();
   });
 });

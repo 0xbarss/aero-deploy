@@ -50,6 +50,8 @@ describe("dashboard hosting", () => {
   it.each([
     ["/dashboard.js", /javascript/],
     ["/release-view.js", /javascript/],
+    ["/upload.js", /javascript/],
+    ["/dom.js", /javascript/],
     ["/dashboard.css", /^text\/css/],
   ])("serves %s with the right content type", async (url, contentType) => {
     const app = await createApp();
@@ -152,7 +154,7 @@ describe("dashboard hosting", () => {
     expect(script.body).not.toContain("secret");
   });
 
-  it.each(["dashboard.js", "release-view.js"])(
+  it.each(["dashboard.js", "release-view.js", "upload.js", "dom.js"])(
     "%s never builds markup from strings or evaluates code",
     async (file) => {
       const source = await readFile(join(PUBLIC_DIR, file), "utf8");
@@ -164,8 +166,25 @@ describe("dashboard hosting", () => {
   );
 
   it("keeps the admin token out of browser storage", async () => {
-    const source = await readFile(join(PUBLIC_DIR, "dashboard.js"), "utf8");
+    const sources = await Promise.all(
+      ["dashboard.js", "upload.js"].map((file) => readFile(join(PUBLIC_DIR, file), "utf8")),
+    );
+    const source = sources.join("\n");
 
     expect(source).not.toMatch(/localStorage|sessionStorage|document\.cookie|indexedDB/);
+  });
+
+  it("has a place for the upload form in the page", async () => {
+    const app = await createApp();
+    const response = await app.inject({ method: "GET", url: "/" });
+
+    expect(response.body).toContain('id="upload"');
+  });
+
+  it("replaces the page content through a helper that skips missing children", async () => {
+    // replaceChildren(null) would print the word "null" into the page
+    const source = await readFile(join(PUBLIC_DIR, "dashboard.js"), "utf8");
+
+    expect(source).not.toMatch(/root\.replaceChildren\(/);
   });
 });
