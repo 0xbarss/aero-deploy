@@ -275,6 +275,7 @@ dd {
 
 .link-field input,
 .confirm input,
+.rename input,
 .toolbar select {
   width: 100%;
   padding: 0.4375rem 0.625rem;
@@ -355,6 +356,7 @@ dd {
 }
 
 .qr,
+.rename,
 .danger-zone,
 .confirm {
   margin-top: 1.25rem;
@@ -363,6 +365,7 @@ dd {
 }
 
 .confirm h3,
+.rename h3,
 .qr h3 {
   margin: 0 0 0.5rem;
   font-size: 1rem;
@@ -382,18 +385,21 @@ dd {
   height: auto;
 }
 
-.confirm p {
+.confirm p,
+.rename p {
   margin: 0 0 0.75rem;
 }
 
-.confirm label {
+.confirm label,
+.rename label {
   display: block;
   margin: 0.75rem 0 0.25rem;
   color: var(--muted);
   font-size: 0.8125rem;
 }
 
-.confirm .error:empty {
+.confirm .error:empty,
+.rename .error:empty {
   display: none;
 }
 

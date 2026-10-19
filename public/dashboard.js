@@ -9,9 +9,11 @@ import {
   filterableApps,
   formatFileSize,
   isReachableFromPhone,
+  isRenameChange,
   latestReleaseIds,
   matchesVersionName,
   releasesQuery,
+  renameSuccessMessage,
   shortHash,
   successorOf,
 } from "./release-view.js";
@@ -31,6 +33,8 @@ const state = {
   // Kept in memory only, so it is asked for again after a reload
   adminToken: null,
   confirm: null,
+  // The app being renamed: { appId, draft, error }
+  rename: null,
   // The reason the last Download click on a release did not start a download
   downloadProblem: null,
   notice: null,
@@ -172,6 +176,7 @@ function badge() {
 function select(id) {
   state.selectedId = id;
   state.confirm = null;
+  state.rename = null;
   if (state.downloadProblem !== null && state.downloadProblem.releaseId !== id) {
     state.downloadProblem = null;
   }
@@ -416,6 +421,7 @@ async function openConfirm(release, button, panel) {
       return;
     }
   }
+  state.rename = null;
   state.confirm = {
     releaseId: release.id,
     note: confirmationNote(release.appName, isLatest, successor),
@@ -432,6 +438,162 @@ function deleteSection(release, panel) {
   const button = h("button", { type: "button", class: "danger" }, "Delete release…");
   button.addEventListener("click", () => void openConfirm(release, button, panel));
   return h("div", { class: "danger-zone" }, button);
+}
+
+async function sendRename(appId, name, token) {
+  let response;
+  try {
+    response = await fetch(`/api/apps/${appId}`, {
+      method: "PATCH",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({ name }),
+    });
+  } catch (error) {
+    throw new Error("Cannot reach the server. Check that it is running, then try again.", {
+      cause: error,
+    });
+  }
+  const body = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new RequestFailed(response.status, apiErrorMessage(response.status, body));
+  }
+  return body.data;
+}
+
+function finishRename(release, renamed) {
+  const message = renameSuccessMessage(release.appName, renamed.name);
+  // The loaded pages and the selection stay as they are; only the name changes
+  for (const item of state.releases) {
+    if (item.appId === release.appId) {
+      item.appName = renamed.name;
+    }
+  }
+  for (const app of state.apps) {
+    if (app.id === release.appId) {
+      app.name = renamed.name;
+    }
+  }
+  state.rename = null;
+  state.notice = message;
+  announce(message);
+  renderList();
+}
+
+function renameForm(release) {
+  const needsToken = state.adminToken === null;
+  const name = h("input", {
+    type: "text",
+    id: "rename-name",
+    autocomplete: "off",
+    spellcheck: "false",
+    value: state.rename.draft ?? release.appName,
+  });
+  const token = needsToken
+    ? h("input", { type: "password", id: "rename-token", autocomplete: "off" })
+    : null;
+  const error = h("p", { class: "error", role: "alert" }, state.rename.error ?? "");
+  const submit = h("button", { type: "submit", class: "button", disabled: true }, "Save name");
+  const cancel = h(
+    "button",
+    {
+      type: "button",
+      class: "plain",
+      onclick: () => {
+        state.rename = null;
+        renderDetails();
+      },
+    },
+    "Cancel",
+  );
+  const refresh = () => {
+    state.rename.draft = name.value;
+    submit.disabled =
+      !isRenameChange(name.value, release.appName) || (needsToken && token.value === "");
+  };
+  name.addEventListener("input", refresh);
+  token?.addEventListener("input", refresh);
+
+  const form = h(
+    "form",
+    { class: "rename", novalidate: true },
+    h("h3", {}, "Rename app"),
+    h(
+      "p",
+      {},
+      "The name is shown in the list and used in download file names. Every release of this app is renamed.",
+    ),
+    h("label", { for: "rename-name" }, "App name"),
+    name,
+    needsToken ? h("label", { for: "rename-token" }, "Admin token") : null,
+    token,
+    error,
+    h("div", { class: "detail-actions" }, submit, cancel),
+  );
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (submit.disabled) {
+      return;
+    }
+    const bearer = state.adminToken ?? token.value;
+    submit.disabled = true;
+    cancel.disabled = true;
+    submit.textContent = "Saving…";
+    error.textContent = "";
+    let renamed;
+    try {
+      renamed = await sendRename(release.appId, name.value, bearer);
+    } catch (failure) {
+      const status = failure instanceof RequestFailed ? failure.status : 0;
+      const message = failure instanceof Error ? failure.message : "Unknown error.";
+      if (status === 401) {
+        // A wrong token is dropped, so the form asks for it again
+        state.adminToken = null;
+        state.rename.error = message;
+        renderDetails();
+        document.getElementById("rename-token").focus();
+        return;
+      }
+      error.textContent = message;
+      submit.textContent = "Save name";
+      cancel.disabled = false;
+      refresh();
+      return;
+    }
+    state.adminToken = bearer;
+    finishRename(release, renamed);
+  });
+  return form;
+}
+
+function renameSection(release) {
+  if (state.rename !== null && state.rename.appId === release.appId) {
+    return renameForm(release);
+  }
+  const button = h(
+    "button",
+    {
+      type: "button",
+      class: "plain",
+      onclick: () => {
+        state.confirm = null;
+        state.rename = { appId: release.appId, draft: null, error: null };
+        renderDetails();
+        document.getElementById("rename-name").focus();
+      },
+    },
+    "Rename app…",
+  );
+  return h(
+    "section",
+    { class: "rename" },
+    h("h3", {}, "App"),
+    h("p", { class: "note" }, release.appName),
+    h("div", { class: "detail-actions" }, button),
+  );
 }
 
 function qrSection(release) {
@@ -524,6 +686,7 @@ function renderDetails() {
       ? h("p", { class: "error", role: "alert" }, state.downloadProblem.message)
       : null,
     qrSection(release),
+    renameSection(release),
     deleteSection(release, panel),
   );
 }
@@ -622,6 +785,7 @@ async function loadFirstPage(notice = null) {
     state.total = page.pagination.total;
     state.selectedId = null;
     state.confirm = null;
+    state.rename = null;
     state.downloadProblem = null;
     state.notice = notice;
     state.loadMoreError = null;

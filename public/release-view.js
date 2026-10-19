@@ -130,6 +130,25 @@ export function confirmationNote(appName, isLatest, successor) {
 }
 
 /**
+ * Whether a typed app name is worth sending: not blank and not the name the app already has.
+ * A change of letter case counts, because the server allows it for the same app.
+ * @param {string} typed
+ * @param {string} currentName
+ */
+export function isRenameChange(typed, currentName) {
+  const name = typed.trim();
+  return name !== "" && name !== currentName;
+}
+
+/**
+ * @param {string} oldName
+ * @param {string} newName
+ */
+export function renameSuccessMessage(oldName, newName) {
+  return `Renamed ${oldName} to ${newName}.`;
+}
+
+/**
  * @param {number} status
  * @param {unknown} body
  * @returns {string}
