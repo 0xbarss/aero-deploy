@@ -54,7 +54,8 @@ Hosted distribution services solve this, but they need an account, an internet c
 - `db/migrate.ts` is a small SQL migration runner. Migrations are `<timestamp>_<name>.up.sql` and `.down.sql` pairs, applied in name order, one transaction each. There is no ORM; queries use the `pg` driver directly.
 - `admin-auth.ts` provides the bearer token check shared by the admin and upload routes.
 - `error-handler.ts` turns every failure, including unknown routes and router-level errors, into one JSON error shape.
-- `public/` holds the dashboard: plain HTML, CSS and ES modules served by `@fastify/static`.
+- `public/` holds the built dashboard, served by `@fastify/static`. It is generated from `web/` by Vite and is not edited by hand.
+- `web/` holds the dashboard source: a React application built with Vite.
 
 **Upload lifecycle**
 
@@ -96,11 +97,23 @@ Hosted distribution services solve this, but they need an account, an internet c
 aero-deploy/
 ├── migrations/             SQL migrations (*.up.sql, *.down.sql)
 ├── docker/initdb/          Creates the aerodeploy_test database on first start
-├── public/                 Dashboard served at / (HTML, CSS, ES modules)
-│   └── vendor/             Vendored QR code generator (uqr, MIT)
+├── web/                    Dashboard source (React, TypeScript, Vite)
+│   ├── index.html          The page shell
+│   ├── public/             Static files copied as they are: fonts, the mark, licences
+│   └── src/
+│       ├── main.tsx        Mounts the application
+│       ├── App.tsx         State, data loading and the page layout
+│       ├── api.ts          The calls to the JSON API
+│       ├── format.ts       Formatting and comparison helpers
+│       ├── qr.ts           QR code drawing for the install link
+│       ├── components/     TopBar, Masthead, InstallDesk, StatusStrip, Ledger, Rail, HowItWorks, Footer, UploadSheet
+│       ├── styles.css      The design tokens and every component style
+│       └── __tests__/      Vitest suites for the dashboard helpers
+├── public/                 Built dashboard served at / (generated, not in version control)
 ├── scripts/
 │   ├── upload-apk.ts       Command line uploader for build scripts
-│   └── backfill-sha256.ts  One-time checksum backfill utility
+│   ├── backfill-sha256.ts  One-time checksum backfill utility
+│   ├── fetch-fonts.mjs     Downloads the self-hosted webfonts
 ├── src/
 │   ├── server.ts           Entry point: config, pool, listen, shutdown
 │   ├── app.ts              buildApp(): Fastify instance and plugins
@@ -146,7 +159,7 @@ curl http://localhost:3000/api/health
 
 ### Open the dashboard
 
-Open `http://<server-ip>:3000/` in a browser on the same network. The dashboard lists releases, shows per-app "Latest" badges, a details panel with checksums and release notes, a QR code per download link, and an upload form with drag-and-drop, progress and cancel. When two or more apps have releases, an app filter sits above the list. The details panel has "Rename app" and "Delete release" actions, both behind the admin token typed into a confirmation dialog.
+Open `http://<server-ip>:3000/` in a browser on the same network. The dashboard lists releases, shows per-app "Latest" badges, an install desk with the QR code and the link a phone follows, a details panel with checksums and release notes, and an upload form with drag-and-drop, progress and cancel. When two or more apps have releases, an app filter sits above the list. The details panel has "Rename app" and "Delete release" actions, both behind the admin token typed into a confirmation dialog.
 
 ### Upload with curl
 
@@ -220,6 +233,16 @@ All responses are JSON except the APK download. Errors always have this shape:
 ### `GET /api/health`
 
 Returns `200` with `{ "success": true, "data": { "status": "ok" } }`. It does not query the database.
+
+### `GET /api/network`
+
+Returns the IPv4 addresses of the server that a phone on the same network could use to reach it. The dashboard uses them to build an install link and a QR code that work from a phone, even when the page itself was opened on `localhost`.
+
+```json
+{ "success": true, "data": { "addresses": ["192.168.1.20"] } }
+```
+
+The addresses are ordered so the ones on a home or office network come first; a container bridge address is listed last.
 
 ### `POST /api/apks/upload`
 
@@ -418,19 +441,54 @@ Reads `DATABASE_URL` and `UPLOAD_DIR` from the environment. Takes no arguments.
 
 ### npm scripts
 
-| Script                    | Purpose                              |
-| :------------------------ | :----------------------------------- |
-| `npm run dev`             | Start with file watching             |
-| `npm run build`           | Compile to `dist/`                   |
-| `npm start`               | Run the compiled build               |
-| `npm run migrate`         | Apply pending migrations             |
-| `npm run migrate:down`    | Revert the latest migration          |
-| `npm run upload`          | Upload an APK from the command line  |
-| `npm run backfill:sha256` | Backfill missing checksums           |
-| `npm test`                | Run the test suite                   |
-| `npm run lint`            | Run ESLint                           |
-| `npm run typecheck`       | Run the TypeScript compiler, no emit |
-| `npm run format:check`    | Check formatting                     |
+| Script                    | Purpose                                      |
+| :------------------------ | :------------------------------------------- |
+| `npm run dev`             | Start the server with file watching          |
+| `npm run dev:web`         | Start the Vite dev server for the dashboard  |
+| `npm run build`           | Build the dashboard, then compile the server |
+| `npm run build:web`       | Build the dashboard into `public/`           |
+| `npm start`               | Run the compiled build                       |
+| `npm run migrate`         | Apply pending migrations                     |
+| `npm run migrate:down`    | Revert the latest migration                  |
+| `npm run upload`          | Upload an APK from the command line          |
+| `npm run backfill:sha256` | Backfill missing checksums                   |
+| `npm run fonts`           | Download the self-hosted webfonts            |
+| `npm test`                | Run the test suite                           |
+| `npm run lint`            | Run ESLint                                   |
+| `npm run typecheck`       | Run the TypeScript compiler, no emit         |
+| `npm run format:check`    | Check formatting                             |
+
+## The dashboard
+
+The dashboard is a React application in `web/`. `npm run build:web` compiles it into `public/`, which the server hands out as static files, so one process serves both the API and the page.
+
+The design follows one rule set: a grayscale foundation with a single accent colour, a distinct display face for headings, a monospace face for numbers and checksums, and a left reading axis instead of a centred column. The fonts are self-hosted in `web/public/fonts/`, so the dashboard works on a network with no route to the internet and the page keeps its `default-src 'self'` content security policy.
+
+The page is built in four parts, and each part answers a question instead of filling space:
+
+| Part                 | Question it answers                                                                                                                                 |
+| :------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Masthead + desk      | How does a build reach a phone? The install desk picks a build and hands out its link, its QR code and the facts the server read out of the package |
+| Status strip         | What is on the server, and what came in last?                                                                                                       |
+| Ledger + rail        | Which build do I want, and what can I do with it?                                                                                                   |
+| How it works, footer | What does the server actually do, on which addresses, and with which commands?                                                                      |
+
+Nothing on the page is decorative copy: every number, link, checksum and command comes from the running server.
+
+Working on the dashboard:
+
+```bash
+npm run dev:web      # Vite dev server on :5173, proxying /api to the server on :3000
+npm run dev          # the API, in another terminal
+```
+
+The build output is content-addressed, so the server can serve a rebuilt dashboard without a restart. `npm run build` builds the dashboard first and then compiles the server, so `npm start` always has a current page to serve.
+
+### Reaching the server from a phone
+
+The dashboard reads the server's own network addresses from `GET /api/network`. When the page was opened on an address that only that computer can use, such as `localhost`, the install link and the QR code are rebuilt on one of the server's network addresses, so a phone on the same Wi-Fi can follow them. The panel says so when it does this.
+
+To use it from a phone, open the address the top bar shows, for example `http://192.168.1.20:3000`. The firewall has to allow the port, and the phone has to be on the same network.
 
 ## Configuration
 
@@ -489,11 +547,12 @@ The suite covers:
 15. **`401 unauthorized` on delete or rename.** The admin token is missing or wrong. Send it as `Authorization: Bearer <ADMIN_TOKEN>`. The upload token does not open admin routes.
 16. **`409 app_name_exists` on rename.** Another app already has that name (ignoring case). Choose a different name.
 17. **`EADDRINUSE`.** Another process uses the port. Change `PORT`.
-18. **Dashboard shows a blank page or fails to load.** Check that the server has `UPLOAD_DIR` readable and that the `public/` directory is present. The dashboard is served from `public/` next to `src/` (or `dist/` when running compiled). Open the browser console for errors.
-19. **The dashboard QR code is not shown.** The dashboard was opened through `localhost` or `127.0.0.1`. A phone would resolve that address to itself. Open the dashboard through the server's LAN IP address instead.
-20. **A phone cannot install the downloaded APK.** Android 9 and newer block plain `http://` traffic unless the app allows it in its network security configuration, and installing an APK needs the "install unknown apps" permission for the app that starts the install. This is device behavior and is not something the server can change.
-21. **A server crash during an upload.** The temporary file `.upload-<uuid>.tmp` stays in `UPLOAD_DIR`. It is not served and can be deleted when the server is stopped.
-22. **A download starts but the file is corrupt.** The release's `sha256` can be checked against the file with `sha256sum`. If they differ, the file on disk was modified after upload; delete and re-upload the release.
+18. **Dashboard shows a blank page or fails to load.** The dashboard is built from `web/` into `public/`; run `npm run build:web` if `public/index.html` is missing. The page is served from `public/` next to `src/` (or `dist/` when running compiled). Open the browser console for errors.
+19. **Dashboard loads but shows no releases.** The API and the page are separate concerns: check that the server is running and that `/api/health` answers. The page lists what the database holds, so an empty table means an empty database, not a broken page.
+20. **The dashboard QR code is not shown.** The dashboard was opened through `localhost` or `127.0.0.1`. A phone would resolve that address to itself. Open the dashboard through the server's LAN IP address instead.
+21. **A phone cannot install the downloaded APK.** Android 9 and newer block plain `http://` traffic unless the app allows it in its network security configuration, and installing an APK needs the "install unknown apps" permission for the app that starts the install. This is device behavior and is not something the server can change.
+22. **A server crash during an upload.** The temporary file `.upload-<uuid>.tmp` stays in `UPLOAD_DIR`. It is not served and can be deleted when the server is stopped.
+23. **A download starts but the file is corrupt.** The release's `sha256` can be checked against the file with `sha256sum`. If they differ, the file on disk was modified after upload; delete and re-upload the release.
 
 ## Author & Contributions
 
