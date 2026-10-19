@@ -4,6 +4,7 @@ import {
   apiErrorMessage,
   confirmationNote,
   deleteFailureMessage,
+  downloadFailure,
   filterableApps,
   formatFileSize,
   isApkFileName,
@@ -237,5 +238,61 @@ describe("parseJsonBody", () => {
 
   it.each(["", "<h1>Bad Gateway</h1>", "{broken"])("returns null for %j", (text) => {
     expect(parseJsonBody(text)).toBeNull();
+  });
+});
+
+describe("downloadFailure", () => {
+  const missingFile = {
+    success: false,
+    error: {
+      code: "apk_file_missing",
+      message: "The file for release 4 is no longer on the server",
+    },
+  };
+
+  it("says what to do when the file is gone from the server", () => {
+    expect(downloadFailure(404, missingFile)).toEqual({
+      message:
+        "The file for this release is no longer on the server. Delete the release, then upload the build again.",
+      releaseRemoved: false,
+    });
+  });
+
+  it("says the release is already removed when the release itself is unknown", () => {
+    const body = {
+      success: false,
+      error: { code: "release_not_found", message: "Release 4 not found" },
+    };
+
+    expect(downloadFailure(404, body)).toEqual({
+      message: "This release was already removed.",
+      releaseRemoved: true,
+    });
+  });
+
+  it("does not treat a 404 without the server's code as a removed release", () => {
+    expect(downloadFailure(404, null)).toEqual({
+      message: "The server answered HTTP 404.",
+      releaseRemoved: false,
+    });
+  });
+
+  it("uses the server's message for other errors", () => {
+    const body = {
+      success: false,
+      error: { code: "validation_error", message: "Invalid release id" },
+    };
+
+    expect(downloadFailure(400, body)).toEqual({
+      message: "Invalid release id",
+      releaseRemoved: false,
+    });
+  });
+
+  it("falls back to the status when there is no message", () => {
+    expect(downloadFailure(502, null)).toEqual({
+      message: "The server answered HTTP 502.",
+      releaseRemoved: false,
+    });
   });
 });

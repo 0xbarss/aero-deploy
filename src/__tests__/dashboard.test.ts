@@ -52,6 +52,7 @@ describe("dashboard hosting", () => {
     ["/release-view.js", /javascript/],
     ["/upload.js", /javascript/],
     ["/dom.js", /javascript/],
+    ["/download.js", /javascript/],
     ["/dashboard.css", /^text\/css/],
   ])("serves %s with the right content type", async (url, contentType) => {
     const app = await createApp();
@@ -154,7 +155,7 @@ describe("dashboard hosting", () => {
     expect(script.body).not.toContain("secret");
   });
 
-  it.each(["dashboard.js", "release-view.js", "upload.js", "dom.js"])(
+  it.each(["dashboard.js", "release-view.js", "upload.js", "dom.js", "download.js"])(
     "%s never builds markup from strings or evaluates code",
     async (file) => {
       const source = await readFile(join(PUBLIC_DIR, file), "utf8");
@@ -179,6 +180,12 @@ describe("dashboard hosting", () => {
     const response = await app.inject({ method: "GET", url: "/" });
 
     expect(response.body).toContain('id="upload"');
+  });
+
+  it("checks that the file is there before it starts a download", async () => {
+    const source = await readFile(join(PUBLIC_DIR, "dashboard.js"), "utf8");
+
+    expect(source).toMatch(/probeDownload\(/);
   });
 
   it("replaces the page content through a helper that skips missing children", async () => {
