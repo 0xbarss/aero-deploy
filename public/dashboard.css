@@ -404,3 +404,90 @@ dd {
 .danger-zone + .error {
   margin: 0.5rem 0 0;
 }
+
+[hidden] {
+  display: none !important;
+}
+
+.upload {
+  margin: 1.5rem clamp(1rem, 3vw, 2rem) 0;
+  padding: 1.25rem;
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+}
+
+.upload h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.0625rem;
+}
+
+.upload .field {
+  margin-top: 0.75rem;
+}
+
+.upload .field label {
+  display: block;
+  margin-bottom: 0.25rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.upload textarea,
+.upload input[type="password"] {
+  width: 100%;
+  max-width: 40rem;
+  padding: 0.4375rem 0.625rem;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--page);
+  color: var(--ink);
+  font: inherit;
+}
+
+.drop {
+  display: block;
+  max-width: 40rem;
+  padding: 1rem;
+  border: 2px dashed var(--rule);
+  border-radius: 6px;
+  color: var(--muted);
+  text-align: center;
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.drop:hover,
+.drop.dragging {
+  border-color: var(--accent);
+  background: var(--selected);
+}
+
+.drop:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.upload-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.upload progress {
+  display: block;
+  width: 100%;
+  max-width: 40rem;
+  margin-top: 0.75rem;
+  accent-color: var(--accent);
+}
+
+.upload .note,
+.upload .error {
+  margin: 0.5rem 0 0;
+}
+
+.upload .error:empty,
+.upload .note:empty {
+  display: none;
+}

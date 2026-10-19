@@ -126,3 +126,39 @@ export function confirmationNote(appName, isLatest, successor) {
 export function deleteFailureMessage(status, body) {
   return status === 404 ? "This release was already removed." : apiErrorMessage(status, body);
 }
+
+/** Whether a file name looks like an APK; the server still checks the content. */
+export function isApkFileName(name) {
+  return /^.+\.apk$/i.test(name.trim());
+}
+
+/**
+ * What the upload response says was detected in the APK.
+ * @param {{ appName: string, versionName: string, versionCode: number, fileSize: string }} data
+ */
+export function uploadSummary(data) {
+  return `Uploaded ${data.appName} ${data.versionName} (${data.versionCode}), ${data.fileSize}.`;
+}
+
+/**
+ * @param {number} loaded bytes sent so far
+ * @param {number} total bytes to send, or 0 when unknown
+ */
+export function progressLabel(loaded, total) {
+  if (!(total > 0)) {
+    return "Uploading…";
+  }
+  if (loaded >= total) {
+    return "Processing on the server…";
+  }
+  return `Uploading… ${Math.floor((loaded / total) * 100)}%`;
+}
+
+/** The parsed JSON, or null when the text is not JSON (for example a proxy's error page). */
+export function parseJsonBody(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}

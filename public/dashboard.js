@@ -1,3 +1,4 @@
+import { h, replaceContent } from "./dom.js";
 import {
   apiErrorMessage,
   confirmationNote,
@@ -10,6 +11,7 @@ import {
   shortHash,
   successorOf,
 } from "./release-view.js";
+import { mountUpload } from "./upload.js";
 
 const PAGE_SIZE = 50;
 const FEEDBACK_MS = 1800;
@@ -33,24 +35,6 @@ const state = {
   loadingMore: false,
   loadMoreError: null,
 };
-
-function h(tag, attributes = {}, ...children) {
-  const node = document.createElement(tag);
-  for (const [name, value] of Object.entries(attributes)) {
-    if (value === false || value === null || value === undefined) {
-      continue;
-    }
-    if (name === "class") {
-      node.className = value;
-    } else if (name.startsWith("on")) {
-      node.addEventListener(name.slice(2), value);
-    } else {
-      node.setAttribute(name, value === true ? "" : value);
-    }
-  }
-  node.append(...children.filter((child) => child !== null && child !== false));
-  return node;
-}
 
 function announce(message) {
   announcer.textContent = message;
@@ -465,18 +449,20 @@ function renderList() {
   const filterHadFocus = document.activeElement?.id === "app-filter";
   const notice = state.notice === null ? null : h("p", { class: "notice" }, state.notice);
   if (state.releases.length === 0) {
-    root.replaceChildren(
+    replaceContent(
+      root,
       notice,
       h(
         "section",
         { class: "empty" },
         h("h2", {}, "No releases yet"),
-        h("p", {}, "Upload an APK with npm run upload and it will appear here."),
+        h("p", {}, "Upload an APK above, or with npm run upload, and it will appear here."),
       ),
     );
     return;
   }
-  root.replaceChildren(
+  replaceContent(
+    root,
     notice,
     h(
       "div",
@@ -499,7 +485,8 @@ function renderList() {
 
 function renderFailure(error) {
   root.setAttribute("aria-busy", "false");
-  root.replaceChildren(
+  replaceContent(
+    root,
     h(
       "section",
       { class: "empty" },
@@ -556,4 +543,8 @@ async function loadMore() {
   renderList();
 }
 
+mountUpload(document.getElementById("upload"), {
+  announce,
+  onUploaded: () => loadFirstPage(),
+});
 await loadFirstPage();
