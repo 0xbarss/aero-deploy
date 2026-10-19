@@ -236,8 +236,9 @@ export function App() {
     }
     return {
       releases: serverTotal,
-      apps: apps.length,
-      tracked: filterableApps(apps).length,
+      // Only the apps that have a release; the server keeps a spare row for uploads that arrive
+      // without a package name.
+      apps: filterableApps(apps).map((app) => app.name),
       bytes,
       loaded: releases.length,
       newest,
@@ -249,7 +250,7 @@ export function App() {
 
   return (
     <div className="shell">
-      <TopBar origin={shareable} busy={loading} onRefresh={() => void loadFirstPage()} />
+      <TopBar />
 
       <div className="hero-band">
         <Masthead

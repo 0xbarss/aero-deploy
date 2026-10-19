@@ -488,7 +488,7 @@ The build output is content-addressed, so the server can serve a rebuilt dashboa
 
 The dashboard reads the server's own network addresses from `GET /api/network`. When the page was opened on an address that only that computer can use, such as `localhost`, the install link and the QR code are rebuilt on one of the server's network addresses, so a phone on the same Wi-Fi can follow them. The panel says so when it does this.
 
-To use it from a phone, open the address the top bar shows, for example `http://192.168.1.20:3000`. The firewall has to allow the port, and the phone has to be on the same network.
+To use it from a phone, open the address the page shows at the bottom, for example `http://192.168.1.20:3000`. The firewall has to allow the port, and the phone has to be on the same network.
 
 ## Configuration
 

@@ -54,11 +54,6 @@ export function Ledger({
     );
   }, [releases, query]);
 
-  const showApp = useMemo(
-    () => new Set(visible.map((release) => release.appId)).size > 1,
-    [visible],
-  );
-
   if (loading && releases.length === 0) {
     return (
       <section className="panel panel-empty" aria-busy="true">
@@ -134,11 +129,9 @@ export function Ledger({
         <table className="ledger-table">
           <thead>
             <tr>
-              {showApp && (
-                <th scope="col" className="col-app">
-                  App
-                </th>
-              )}
+              <th scope="col" className="col-app">
+                App
+              </th>
               <th scope="col">Version</th>
               <th scope="col" className="col-code">
                 Code
@@ -167,13 +160,11 @@ export function Ledger({
                   className={selected ? "is-selected" : undefined}
                   aria-current={selected ? "true" : undefined}
                 >
-                  {showApp && (
-                    <td className="col-app">
-                      <span className="cell-app" title={release.appName}>
-                        {release.appName}
-                      </span>
-                    </td>
-                  )}
+                  <td className="col-app">
+                    <span className="cell-app" title={release.appName}>
+                      {release.appName}
+                    </span>
+                  </td>
                   <td>
                     <button
                       type="button"

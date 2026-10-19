@@ -53,10 +53,6 @@ export function Rail({
     <aside className="rail" aria-label="Release details">
       {release === null ? (
         <div className="rail-empty">
-          <p className="eyebrow">
-            <span className="eyebrow-rule" aria-hidden="true" />
-            No selection
-          </p>
           <p className="rail-empty-text">
             Pick a release in the list to see its notes, its checksum and what you can do with it.
           </p>
@@ -211,11 +207,6 @@ function RailContent({
   return (
     <>
       <div className="rail-body">
-        <p className="eyebrow">
-          <span className="eyebrow-rule" aria-hidden="true" />
-          Selected release
-        </p>
-
         <h2 className="rail-title">
           {release.appName}
           <span className="rail-version">{release.versionName}</span>

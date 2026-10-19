@@ -110,13 +110,7 @@ export function UploadSheet({ open, onClose, onUploaded }: UploadSheetProps) {
         ref={dialog}
       >
         <div className="sheet-head">
-          <div>
-            <p className="eyebrow">
-              <span className="eyebrow-rule" aria-hidden="true" />
-              New release
-            </p>
-            <h2 id="sheet-title">Upload an APK</h2>
-          </div>
+          <h2 id="sheet-title">Upload an APK</h2>
           <button
             type="button"
             className="icon-button"

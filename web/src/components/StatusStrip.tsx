@@ -3,10 +3,8 @@ import { formatFileSize } from "../format";
 export interface StatusMetrics {
   /** Every release the server holds, not only the ones on screen. */
   releases: number;
-  /** Apps the server knows about. */
-  apps: number;
-  /** Apps that still have at least one release. */
-  tracked: number;
+  /** The apps that have at least one release. */
+  apps: string[];
   /** The size of the releases that are loaded in this page. */
   bytes: number;
   /** The releases in this page. */
@@ -24,25 +22,29 @@ interface StatusStripProps {
  * manager asks first: how much is on the server, and what came in last.
  */
 export function StatusStrip({ metrics }: StatusStripProps) {
+  const appCount = metrics.apps.length;
+
   return (
     <section className="status" aria-label="Server status">
       <div className="status-cell">
         <p className="status-label">Releases on the server</p>
         <p className="status-figure">{metrics.releases.toLocaleString()}</p>
         <p className="status-caption">
-          {metrics.tracked === 0
+          {appCount === 0
             ? "nothing uploaded yet"
-            : `across ${metrics.tracked} ${metrics.tracked === 1 ? "app" : "apps"}`}
+            : `across ${appCount} ${appCount === 1 ? "app" : "apps"}`}
         </p>
       </div>
 
       <div className="status-cell">
-        <p className="status-label">Apps tracked</p>
-        <p className="status-figure">{metrics.apps.toLocaleString()}</p>
+        <p className="status-label">Apps</p>
+        <p className="status-figure">{appCount.toLocaleString()}</p>
         <p className="status-caption">
-          {metrics.apps === metrics.tracked
-            ? "all of them have a release"
-            : `${metrics.tracked} with a release left`}
+          {appCount === 0
+            ? "none with a release"
+            : appCount === 1
+              ? metrics.apps[0]
+              : "each with a release"}
         </p>
       </div>
 

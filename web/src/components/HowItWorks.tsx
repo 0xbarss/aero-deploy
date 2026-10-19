@@ -5,10 +5,7 @@
 export function HowItWorks() {
   return (
     <section className="howto" aria-label="How a build reaches a phone">
-      <p className="eyebrow">
-        <span className="eyebrow-rule" aria-hidden="true" />
-        How a build reaches a phone
-      </p>
+      <h2 className="howto-heading">How a build gets onto a phone</h2>
 
       <div className="howto-grid">
         <article className="howto-step">

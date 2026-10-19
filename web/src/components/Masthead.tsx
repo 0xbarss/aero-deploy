@@ -38,10 +38,6 @@ export function Masthead({
   return (
     <section className="hero">
       <div className="hero-copy">
-        <p className="eyebrow">
-          <span className="eyebrow-rule" aria-hidden="true" />
-          Deploy target
-        </p>
         <h1>
           Ship the build.
           <br />

@@ -109,10 +109,6 @@ export function InstallDesk({
   return (
     <section className="desk" aria-label="Install desk">
       <header className="desk-head">
-        <p className="eyebrow">
-          <span className="eyebrow-rule" aria-hidden="true" />
-          Install desk
-        </p>
         <h2 className="desk-title">Install a build</h2>
         <p className="desk-sub">Pick one and get the link a phone can open.</p>
       </header>
@@ -224,6 +220,29 @@ export function InstallDesk({
                 {copied === "link" ? <CheckIcon className="icon" /> : <CopyIcon className="icon" />}
               </button>
             </div>
+            {install.rewritten && host !== null && (
+              <p className="muted-text desk-note">
+                Phones on this network can reach <span className="mono">{host}</span>.
+              </p>
+            )}
+          </div>
+
+          <div className="desk-command">
+            <div className="desk-command-box">
+              <code className="desk-command-text">{command}</code>
+            </div>
+            <button
+              type="button"
+              className="icon-button"
+              onClick={() => void copy("command", command ?? "")}
+              aria-label="Copy the download command"
+            >
+              {copied === "command" ? (
+                <CheckIcon className="icon" />
+              ) : (
+                <CopyIcon className="icon" />
+              )}
+            </button>
           </div>
 
           <div className="desk-actions">
@@ -235,28 +254,11 @@ export function InstallDesk({
               <DownloadIcon className="icon" />
               Download APK
             </button>
-            {install.rewritten && host !== null && (
-              <p className="muted-text desk-note">
-                Phones on this network can reach <span className="mono">{host}</span>.
+            {downloadProblem !== null && (
+              <p className="error-text desk-note" role="alert">
+                {downloadProblem}
               </p>
             )}
-          </div>
-
-          {downloadProblem !== null && (
-            <p className="error-text" role="alert">
-              {downloadProblem}
-            </p>
-          )}
-
-          <div className="desk-command">
-            <code className="desk-command-text">{command}</code>
-            <button
-              type="button"
-              className="text-button"
-              onClick={() => void copy("command", command ?? "")}
-            >
-              {copied === "command" ? "Copied" : "Copy"}
-            </button>
           </div>
         </>
       )}
