@@ -1,0 +1,138 @@
+{
+  "tagline": {
+    "en": "Self-hosted APK distribution server for local networks. Upload once, install anywhere on the LAN.",
+    "tr": "Yerel ağlar için kendi sunucunuzda barındırılan APK dağıtım merkezi. Bir kez yükleyin, yerel ağdaki her cihaza anında kurun."
+  },
+  "cover": "cover.png",
+  "coverAspectRatio": "1280 / 640",
+  "highlights": [
+    {
+      "en": "Instant mobile installation: scan a live QR code from any phone on the local network to download and install",
+      "tr": "Anında mobil kurulum: yerel ağdaki herhangi bir telefondan canlı karekodu taratarak indirin ve kurun"
+    },
+    {
+      "en": "Zero Android SDK dependency: extracts package metadata and version names directly from the APK file",
+      "tr": "Android SDK bağımlılığı gerektirmez: paket üst verilerini ve sürüm numaralarını doğrudan APK dosyasından okur"
+    },
+    {
+      "en": "Integrity-checked upload pipeline: streams SHA-256 checksums and commits files only when checks succeed",
+      "tr": "Bütünlük denetimli yükleme hattı: akış sırasında SHA-256 özeti çıkarır ve dosyayı yalnızca denetimler başarılıysa kaydeder"
+    },
+    {
+      "en": "Multi-app management: automatically registers apps by package identifier and maintains complete release histories",
+      "tr": "Çoklu uygulama yönetimi: uygulamaları paket kimliğine göre otomatik kaydeder ve eksiksiz sürüm geçmişi tutar"
+    },
+    {
+      "en": "Single self-contained service: serves the REST API, file downloads, and React dashboard from one process",
+      "tr": "Tek ve bağımsız servis: REST API, dosya indirmeleri ve React gösterge panelini tek bir süreç üzerinden sunar"
+    }
+  ],
+  "links": [
+    {
+      "label": {
+        "en": "GitHub Repository",
+        "tr": "GitHub Deposu"
+      },
+      "url": "https://github.com/0xbarss/aero-deploy"
+    },
+    {
+      "label": {
+        "en": "APK Domain & Routes",
+        "tr": "APK Yönetimi ve Rotalar"
+      },
+      "url": "https://github.com/0xbarss/aero-deploy/blob/main/src/apks/routes.ts"
+    },
+    {
+      "label": {
+        "en": "Binary Manifest Parser",
+        "tr": "İkili Manifest Ayrıştırıcı"
+      },
+      "url": "https://github.com/0xbarss/aero-deploy/blob/main/src/apks/binary-xml.ts"
+    },
+    {
+      "label": {
+        "en": "Web Dashboard",
+        "tr": "Web Gösterge Paneli"
+      },
+      "url": "https://github.com/0xbarss/aero-deploy/blob/main/web/src/App.tsx"
+    }
+  ],
+  "blocks": [
+    {
+      "type": "text",
+      "body": {
+        "en": "Distributing internal test builds to Android devices usually involves USB cables, emailing heavy APK files, or waiting for cloud app store review tracks. AeroDeploy replaces this with a lightweight local network hub. A developer uploads a new build once from their terminal or browser, and anyone on the same WiFi network can install it in seconds by scanning a QR code.",
+        "tr": "Dahili test sürümlerini Android cihazlara dağıtmak genellikle USB kabloları bağlamayı, e-posta ile büyük APK dosyaları göndermeyi ya da mağaza onay süreçlerini beklemeyi gerektirir. AeroDeploy, bu süreci yerel ağ üzerinde çalışan pratik bir dağıtım merkezine dönüştürür. Geliştirici yeni derlemeyi terminalden veya tarayıcıdan bir kez yükler; aynı WiFi ağına bağlı herkes ekrandaki karekodu taratarak uygulamayı saniyeler içinde telefonuna kurabilir."
+      }
+    },
+    {
+      "type": "image",
+      "src": "distribution_flow.png",
+      "caption": {
+        "en": "Figure 1: Three-step distribution flow from terminal build to instant mobile installation",
+        "tr": "Şekil 1: Terminaldeki derlemeden telefona anında kuruluma uzanan üç adımlı dağıtım süreci"
+      },
+      "aspectRatio": "1200 / 620",
+      "width": 1200,
+      "height": 620
+    },
+    {
+      "type": "text",
+      "body": {
+        "en": "The day-to-day workflow is designed around speed. When a build finishes compiling, the developer runs a single command or drops the file into the web upload sheet. The server reads the package name, app label, and version number directly out of the file without requiring manual entry. It immediately generates an install desk with a live QR code and a direct download link.",
+        "tr": "Günlük kullanım tamamen hıza odaklanacak şekilde tasarlanmıştır. Derleme tamamlandığında geliştirici tek bir komut çalıştırır veya dosyayı tarayıcıdaki yükleme alanına bırakır. Sunucu; paket adını, uygulama etiketini ve sürüm numarasını dosyanın içinden otomatik olarak okur; böylece elle bilgi girme ihtiyacı ortadan kalkar. Yüklenen derleme için anında canlı bir karekod ve doğrudan indirme bağlantısı içeren kurulum paneli oluşturulur."
+      }
+    },
+    {
+      "type": "image",
+      "src": "device_installation.png",
+      "caption": {
+        "en": "Figure 2: Mobile device installation experience via QR code scanning on the local network",
+        "tr": "Şekil 2: Yerel ağ üzerinden karekod okutarak mobil cihaza doğrudan kurulum deneyimi"
+      },
+      "aspectRatio": "1200 / 620",
+      "width": 1200,
+      "height": 620
+    },
+    {
+      "type": "text",
+      "body": {
+        "en": "For QA engineers and team members, testing a new release requires zero setup. Opening the phone's native camera and scanning the dashboard screen immediately opens Android's package installer over the local WiFi connection. Downloads occur at full local network bandwidth, eliminating external internet latency and data caps.",
+        "tr": "Test uzmanları ve ekip üyeleri için yeni bir sürümü denemek hiçbir ön hazırlık gerektirmez. Telefon kamerasını açıp gösterge panelindeki karekodu okutmak, yerel WiFi bağlantısı üzerinden Android'in paket yükleyicisini anında devreye sokar. İndirme işlemi doğrudan yerel ağ hızıyla gerçekleştiği için harici internet gecikmesi veya kota kullanımı söz konusu olmaz."
+      }
+    },
+    {
+      "type": "image",
+      "src": "multi_app_view.png",
+      "caption": {
+        "en": "Figure 3: Multi-app workspace organizing independent version histories and rollback downloads",
+        "tr": "Şekil 3: Bağımsız sürüm geçmişlerini ve eski sürümlere dönüş indirmelerini yöneten çoklu uygulama paneli"
+      },
+      "aspectRatio": "1200 / 620",
+      "width": 1200,
+      "height": 620
+    },
+    {
+      "type": "text",
+      "body": {
+        "en": "Teams building several products can manage all of them from the same hub. Apps are organized automatically by their unique package identifier, and display names can be customized at any time. Every historical release remains accessible in the ledger, allowing testers to quickly download earlier versions to verify bug fixes or compare builds.",
+        "tr": "Birden fazla uygulama geliştiren ekipler tüm projelerini aynı merkezden yönetebilir. Uygulamalar kendilerine ait paket kimliğine göre otomatik olarak gruplandırılır ve görünen adları istenildiği zaman özelleştirilebilir. Geçmişteki tüm sürümler kayıt listesinde saklandığı için test uzmanları hata düzeltmelerini doğrulamak veya sürümleri karşılaştırmak amacıyla eski derlemeleri kolayca indirebilir."
+      }
+    },
+    {
+      "type": "gallery",
+      "images": [
+        "screenshot_dashboard.png",
+        "screenshot_upload.png",
+        "architecture.png"
+      ]
+    },
+    {
+      "type": "text",
+      "body": {
+        "en": "The web dashboard combines release management with device installation. The top hero desk highlights the latest build with instant copy buttons for URLs and adb install commands. Underneath, a clean Fastify and PostgreSQL foundation keeps the entire service self-contained within a single process, requiring no external cloud services or runtime Android dependencies.",
+        "tr": "Web gösterge paneli, sürüm yönetimini pratik kurulum özellikleriyle bir araya getirir. Üst kısımdaki kurulum alanı; en son derlemeyi öne çıkarır, bağlantı adresleri ve adb kurulum komutları için tek tıkla kopyalama düğmeleri sunar. Altyapıda yer alan Fastify ve PostgreSQL temeli, tüm sistemi harici bulut servislerine veya Android SDK bağımlılıklarına ihtiyaç duymadan tek bir süreç içerisinde çalıştırır."
+      }
+    }
+  ]
+}
